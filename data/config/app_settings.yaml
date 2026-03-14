@@ -1,0 +1,26 @@
+app:
+  name: "ONT Tester NEXUS"
+  version: "0.1.0"
+  environment: "development"
+
+monitor:
+  heartbeat_interval_s: 1.0
+  poll_interval_s: 1.0
+  disconnect_threshold: 2
+
+workers:
+  max_workers: 24
+  worker_join_timeout_s: 5.0
+
+ui:
+  enabled: true
+  refresh_interval_ms: 500
+
+logging:
+  level: "INFO"
+  logs_dir: "data/logs"
+
+database:
+  enabled: true
+  path: "data/runtime/nexus.db"
+  init_on_startup: true
