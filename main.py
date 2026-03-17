@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import logging
+import sys
+
+from PySide6.QtWidgets import QApplication
 
 from app.application.event_bus.bus import EventBus
+from app.application.services.station_service import StationService
 from app.infrastructure.config.settings import Settings, load_settings
 from app.infrastructure.logging.logger import (
     get_logger,
     log_both,
     log_console,
+    log_file,
     setup_logging,
 )
+from app.ui.main_window import MainWindow
+from app.workers.supervisor import Supervisor
 
 
 logger = get_logger(__name__)
@@ -18,7 +25,7 @@ logger = get_logger(__name__)
 def initialize_database(settings: Settings) -> None:
     """
     Punto de inicialización de base de datos.
-    Por ahora se deja como placeholder para la siguiente etapa.
+    Por ahora queda como placeholder.
     """
     if not settings.database.enabled:
         log_console(logger, logging.INFO, "Base de datos deshabilitada por configuración.")
@@ -36,9 +43,9 @@ def initialize_database(settings: Settings) -> None:
     )
 
 
-def bootstrap() -> tuple[Settings, EventBus]:
+def bootstrap() -> tuple[Settings, EventBus, Supervisor, StationService]:
     """
-    Carga configuración y prepara recursos base del sistema.
+    Carga configuración e inicializa los componentes base del sistema.
     """
     settings = load_settings()
     setup_logging(settings)
@@ -53,22 +60,49 @@ def bootstrap() -> tuple[Settings, EventBus]:
     event_bus = EventBus()
     log_console(logger, logging.INFO, "EventBus inicializado correctamente.")
 
-    return settings, event_bus
+    supervisor = Supervisor(settings=settings, event_bus=event_bus)
+    station_service = StationService(supervisor=supervisor)
+
+    return settings, event_bus, supervisor, station_service
 
 
-def run() -> None:
+def run() -> int:
     """
-    Punto central de arranque del sistema.
-    Aquí después se construirá el supervisor, monitor, workers y UI.
+    Arranque principal de la aplicación con PySide6.
     """
-    settings, event_bus = bootstrap()
+    settings, event_bus, supervisor, station_service = bootstrap()
 
-    log_console(logger, logging.INFO, "Sistema base cargado correctamente.")
-    log_console(logger, logging.INFO, "Pendiente: inicializar supervisor, monitor, workers y UI.")
+    app = QApplication(sys.argv)
+    app.setApplicationName(settings.app.name)
 
-    _ = settings
-    _ = event_bus
+    station_service.start_station()
+
+    window = MainWindow(
+        settings=settings,
+        event_bus=event_bus,
+        station_service=station_service,
+    )
+    window.show()
+
+    exit_code = app.exec()
+
+    station_service.stop_station()
+    log_both(logger, logging.INFO, "Aplicación finalizada correctamente.")
+
+    _ = supervisor
+    return exit_code
+
+
+def main() -> int:
+    try:
+        return run()
+    except KeyboardInterrupt:
+        log_both(logger, logging.WARNING, "Ejecución interrumpida por el usuario.")
+        return 130
+    except Exception:
+        log_file(logger, logging.ERROR, "Excepción no controlada en el hilo principal.", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":
-    run()
+    raise SystemExit(main())

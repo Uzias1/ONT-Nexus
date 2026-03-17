@@ -1,0 +1,445 @@
+from __future__ import annotations
+
+import logging
+import threading
+import time
+from typing import Any
+
+from app.application.dto.execution_test_request import ExecutionTestRequest
+from app.application.event_bus.bus import EventBus
+from app.application.event_bus.events import WorkerStateChangedEvent
+from app.infrastructure.config.settings import Settings
+from app.infrastructure.logging.logger import get_logger, log_both, log_console
+from app.infrastructure.network.ping_service import PingService
+from app.workers.connection_monitor import ConnectionMonitor
+from app.workers.port_worker import PortWorker
+from app.workers.worker_context import WorkerContext
+
+
+class Supervisor:
+    """
+    Coordinador central de la estación de pruebas.
+    """
+
+    def __init__(self, settings: Settings, event_bus: EventBus) -> None:
+        self._settings = settings
+        self._event_bus = event_bus
+        self._logger = get_logger(self.__class__.__name__)
+
+        self._lock = threading.RLock()
+        self._stop_event = threading.Event()
+        self._management_thread: threading.Thread | None = None
+        self._running = False
+
+        self._worker_contexts: dict[str, WorkerContext] = {}
+        self._active_port_workers: dict[str, PortWorker] = {}
+
+        self._heartbeat_interval_s = settings.monitor.heartbeat_interval_s
+
+        self._ping_service = PingService(timeout_ms=1000)
+        self._connection_monitor = ConnectionMonitor(
+            settings=settings,
+            supervisor=self,
+            ping_service=self._ping_service,
+        )
+
+    # ==========================================================
+    # Ciclo de vida
+    # ==========================================================
+    def start(self) -> None:
+        with self._lock:
+            if self._running:
+                log_console(self._logger, logging.INFO, "Supervisor ya estaba en ejecución.")
+                return
+
+            self._stop_event.clear()
+            self._initialize_worker_contexts()
+
+            self._management_thread = threading.Thread(
+                target=self._run_management_loop,
+                name="SupervisorThread",
+                daemon=True,
+            )
+            self._management_thread.start()
+
+            self._connection_monitor.start()
+
+            self._running = True
+            log_both(self._logger, logging.INFO, "Supervisor iniciado correctamente.")
+
+    def stop(self) -> None:
+        with self._lock:
+            if not self._running:
+                log_console(self._logger, logging.INFO, "Supervisor ya estaba detenido.")
+                return
+
+            self._stop_event.set()
+            self._connection_monitor.stop()
+
+            for worker_id in list(self._active_port_workers.keys()):
+                self.stop_port_worker(worker_id, release=False)
+
+            if self._management_thread is not None:
+                self._management_thread.join(
+                    timeout=self._settings.workers.worker_join_timeout_s
+                )
+
+            self._running = False
+            log_both(self._logger, logging.INFO, "Supervisor detenido correctamente.")
+
+    def is_running(self) -> bool:
+        with self._lock:
+            return self._running
+
+    # ==========================================================
+    # Inicialización
+    # ==========================================================
+    def _initialize_worker_contexts(self) -> None:
+        self._worker_contexts.clear()
+
+        for station in self._settings.station_map:
+            context = WorkerContext(
+                worker_id=station.worker_id,
+                port_index=station.port_index,
+                expected_ip=station.expected_ip,
+            )
+
+            self._worker_contexts[station.worker_id] = context
+            self._publish_worker_state(context)
+
+        log_console(
+            self._logger,
+            logging.INFO,
+            "Contexts inicializados desde station_map: %s instancia(s).",
+            len(self._worker_contexts),
+        )
+
+    # ==========================================================
+    # Hilo de gestión
+    # ==========================================================
+    def _run_management_loop(self) -> None:
+        try:
+            log_console(self._logger, logging.INFO, "Management loop iniciado.")
+
+            while not self._stop_event.is_set():
+                self._cleanup_finished_port_workers()
+                time.sleep(self._heartbeat_interval_s)
+
+            log_console(self._logger, logging.INFO, "Management loop finalizado.")
+        except Exception:
+            log_both(
+                self._logger,
+                logging.ERROR,
+                "Excepción no controlada en el management loop.",
+                exc_info=True,
+            )
+            raise
+
+    # ==========================================================
+    # Gestión de PortWorkers
+    # ==========================================================
+    def start_port_worker(self, request: ExecutionTestRequest) -> bool:
+        with self._lock:
+            worker_id = request.worker_id
+
+            if worker_id in self._active_port_workers:
+                active_worker = self._active_port_workers[worker_id]
+                if active_worker.is_running():
+                    log_console(
+                        self._logger,
+                        logging.WARNING,
+                        "Ya existe un PortWorker activo para %s.",
+                        worker_id,
+                    )
+                    return False
+
+            port_worker = PortWorker(
+                settings=self._settings,
+                supervisor=self,
+                worker_id=worker_id,
+                request=request,
+            )
+
+            self._active_port_workers[worker_id] = port_worker
+            port_worker.start()
+
+            log_both(
+                self._logger,
+                logging.INFO,
+                "PortWorker registrado y arrancado para %s.",
+                worker_id,
+            )
+            return True
+
+    def stop_port_worker(self, worker_id: str, *, release: bool = True) -> bool:
+        with self._lock:
+            port_worker = self._active_port_workers.get(worker_id)
+            if port_worker is None:
+                return False
+
+            port_worker.stop()
+            self._active_port_workers.pop(worker_id, None)
+
+            if release:
+                self.release_worker(worker_id)
+
+            log_console(
+                self._logger,
+                logging.INFO,
+                "PortWorker detenido para %s.",
+                worker_id,
+            )
+            return True
+
+    def has_active_port_worker(self, worker_id: str) -> bool:
+        with self._lock:
+            port_worker = self._active_port_workers.get(worker_id)
+            if port_worker is None:
+                return False
+            return port_worker.is_running()
+
+    def _cleanup_finished_port_workers(self) -> None:
+        with self._lock:
+            finished_worker_ids: list[str] = []
+
+            for worker_id, port_worker in self._active_port_workers.items():
+                if not port_worker.is_running():
+                    finished_worker_ids.append(worker_id)
+
+            for worker_id in finished_worker_ids:
+                self._active_port_workers.pop(worker_id, None)
+                log_console(
+                    self._logger,
+                    logging.INFO,
+                    "PortWorker finalizado limpiado del registro: %s",
+                    worker_id,
+                )
+
+    # ==========================================================
+    # Consultas de estado
+    # ==========================================================
+    def get_worker_context(self, worker_id: str) -> WorkerContext | None:
+        with self._lock:
+            return self._worker_contexts.get(worker_id)
+
+    def get_all_snapshots(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [context.snapshot() for context in self._worker_contexts.values()]
+
+    def get_available_worker_ids(self) -> list[str]:
+        with self._lock:
+            available: list[str] = []
+
+            for worker_id, context in self._worker_contexts.items():
+                snapshot = context.snapshot()
+                if (
+                    snapshot["state"] == "IDLE"
+                    and snapshot["phase"] == "WAITING"
+                    and worker_id not in self._active_port_workers
+                ):
+                    available.append(worker_id)
+
+            return available
+
+    # ==========================================================
+    # Operaciones sobre workers/contextos
+    # ==========================================================
+    def assign_worker(
+        self,
+        *,
+        worker_id: str,
+        device_ip: str | None = None,
+        mac: str | None = None,
+        status: str = "USADO",
+        phase: str = "WAITING_DEVICE",
+    ) -> bool:
+        with self._lock:
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                log_console(
+                    self._logger,
+                    logging.WARNING,
+                    "No se pudo asignar worker inexistente: %s",
+                    worker_id,
+                )
+                return False
+
+            context.bind_device(device_ip=device_ip, device_mac=mac)
+            context.set_state_and_phase(state=status, phase=phase)
+
+            self._publish_worker_state(context)
+
+            log_console(
+                self._logger,
+                logging.INFO,
+                "Worker %s asignado. expected_ip=%s device_ip=%s mac=%s status=%s phase=%s",
+                worker_id,
+                context.expected_ip,
+                device_ip,
+                mac,
+                status,
+                phase,
+            )
+            return True
+
+    def release_worker(self, worker_id: str) -> bool:
+        with self._lock:
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                log_console(
+                    self._logger,
+                    logging.WARNING,
+                    "No se pudo liberar worker inexistente: %s",
+                    worker_id,
+                )
+                return False
+
+            self._reset_context(context)
+            self._publish_worker_state(self._worker_contexts[worker_id])
+
+            log_console(self._logger, logging.INFO, "Worker %s liberado.", worker_id)
+            return True
+
+    def update_worker_network(
+        self,
+        *,
+        worker_id: str,
+        device_ip: str | None = None,
+        mac: str | None = None,
+    ) -> bool:
+        with self._lock:
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                return False
+
+            context.bind_device(device_ip=device_ip, device_mac=mac)
+            self._publish_worker_state(context)
+            return True
+
+    def update_worker_phase(
+        self,
+        *,
+        worker_id: str,
+        phase: str,
+        status: str | None = None,
+    ) -> bool:
+        with self._lock:
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                return False
+
+            if status is None:
+                context.set_phase(phase)
+            else:
+                context.set_state_and_phase(state=status, phase=phase)
+
+            self._publish_worker_state(context)
+            return True
+
+    def set_worker_connected(
+        self,
+        *,
+        worker_id: str,
+        connected: bool,
+    ) -> bool:
+        with self._lock:
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                return False
+
+            if connected:
+                context.mark_connected()
+            else:
+                context.mark_disconnected()
+
+            self._publish_worker_state(context)
+            return True
+
+    def set_worker_error(
+        self,
+        *,
+        worker_id: str,
+        message: str,
+        status: str = "FAIL",
+        phase: str = "ERROR",
+    ) -> bool:
+        with self._lock:
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                return False
+
+            context.set_error(message=message, state=status, phase=phase)
+            self._publish_worker_state(context)
+
+            log_both(
+                self._logger,
+                logging.ERROR,
+                "Worker %s marcado con error: %s",
+                worker_id,
+                message,
+            )
+            return True
+
+    def complete_worker(
+        self,
+        *,
+        worker_id: str,
+        status: str = "PASS",
+        phase: str = "FINISHED",
+    ) -> bool:
+        with self._lock:
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                return False
+
+            context.mark_finished(state=status, phase=phase)
+            self._publish_worker_state(context)
+
+            log_console(
+                self._logger,
+                logging.INFO,
+                "Worker %s completado. status=%s phase=%s",
+                worker_id,
+                status,
+                phase,
+            )
+            return True
+
+    # ==========================================================
+    # Helpers internos
+    # ==========================================================
+    def _reset_context(self, context: WorkerContext) -> None:
+        port_index = context.port_index
+        worker_id = context.worker_id
+        expected_ip = context.expected_ip
+
+        new_context = WorkerContext(
+            worker_id=worker_id,
+            port_index=port_index,
+            expected_ip=expected_ip,
+        )
+        self._worker_contexts[worker_id] = new_context
+
+    def _publish_worker_state(self, context: WorkerContext) -> None:
+        snapshot = context.snapshot()
+
+        event = WorkerStateChangedEvent(
+            worker_id=snapshot["worker_id"],
+            ip=snapshot["expected_ip"],
+            status=snapshot["state"],
+            mac=snapshot["device_mac"],
+            phase=snapshot["phase"],
+            extra_payload={
+                "port_index": snapshot["port_index"],
+                "expected_ip": snapshot["expected_ip"],
+                "device_ip": snapshot["device_ip"],
+                "connected": snapshot["connected"],
+                "device_sn": snapshot["device_sn"],
+                "vendor": snapshot["vendor"],
+                "model": snapshot["model"],
+                "error_message": snapshot["error_message"],
+                "updated_at": snapshot["updated_at"],
+            },
+        )
+
+        self._event_bus.publish(event)
