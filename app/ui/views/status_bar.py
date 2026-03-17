@@ -1,12 +1,17 @@
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout
+
+from app.ui.theme_manager import ThemeManager
 
 
 class StatusBarView(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+
+        self.setStyleSheet("background: transparent;")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -15,13 +20,6 @@ class StatusBarView(QWidget):
 
         self.datetime_label = QLabel()
         self.datetime_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.datetime_label.setStyleSheet("""
-            QLabel {
-                color: #222222;
-                font-size: 15px;
-                font-weight: 500;
-            }
-        """)
 
         layout.addWidget(self.datetime_label)
 
@@ -30,8 +28,26 @@ class StatusBarView(QWidget):
         self.timer.start(1000)
 
         self._update_time()
+        self.set_scale(15)
+        self.apply_theme()
 
     def _update_time(self) -> None:
         now = datetime.now()
-        text = now.strftime("%a %b %d %Y %H:%M:%S")
+        text = now.strftime("%I:%M %p  %d %B %Y")
         self.datetime_label.setText(text)
+
+    def set_scale(self, font_size: int) -> None:
+        font = self.datetime_label.font()
+        font.setPointSize(font_size)
+        font.setWeight(QFont.Medium)
+        self.datetime_label.setFont(font)
+
+    def apply_theme(self) -> None:
+        theme = ThemeManager.get_theme()
+        self.datetime_label.setStyleSheet(f"""
+            QLabel {{
+                color: {theme.text};
+                font-weight: 500;
+                background: transparent;
+            }}
+        """)

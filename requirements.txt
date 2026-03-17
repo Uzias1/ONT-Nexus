@@ -2,3 +2,4 @@ PyYAML
 pytest
 ruff
 black
+PySide6==6.8.2.1

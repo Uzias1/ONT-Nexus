@@ -9,9 +9,13 @@ class ToggleSwitch(QCheckBox):
         self.setChecked(checked)
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedSize(58, 30)
+        self.setText("")
 
     def sizeHint(self) -> QSize:
         return QSize(58, 30)
+
+    def hitButton(self, pos) -> bool:
+        return self.rect().contains(pos)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         radius = 15
