@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow, QStackedWidget
 
 from app.ui.theme_manager import ThemeManager
@@ -12,6 +15,8 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Vista principal")
         self.setMinimumSize(950, 620)
+
+        self._set_app_icon()
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
@@ -28,6 +33,11 @@ class MainWindow(QMainWindow):
 
         self._connect_navigation()
         self.apply_theme()
+
+    def _set_app_icon(self) -> None:
+        icon_path = Path(__file__).resolve().parent / "assets" / "logo_tester.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
     def _connect_navigation(self) -> None:
         self.dashboard_view.btn_modificar.clicked.connect(self.show_modificar)
@@ -57,6 +67,29 @@ class MainWindow(QMainWindow):
         self.modificar_view.apply_theme()
         self.testeo_view.apply_theme()
         self.dashboard_view.status_bar.apply_theme()
+
+        self._apply_native_titlebar_theme()
+
+    def _apply_native_titlebar_theme(self) -> None:
+        try:
+            import sys
+            if sys.platform != "win32":
+                return
+
+            import ctypes
+            hwnd = int(self.winId())
+
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            value = ctypes.c_int(1 if ThemeManager.is_dark() else 0)
+
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(value),
+                ctypes.sizeof(value),
+            )
+        except Exception:
+            pass
 
     def handle_accept_changes(self) -> None:
         if self.modificar_view.confirm_changes():
