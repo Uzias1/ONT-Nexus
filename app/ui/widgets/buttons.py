@@ -118,3 +118,84 @@ class WarningButton(BaseStyledButton):
             border="#B96A09",
             parent=parent,
         )
+
+
+class BackButton(QPushButton):
+    def __init__(self, text: str = "Volver", parent=None) -> None:
+        super().__init__(text, parent)
+
+        theme = ThemeManager.get_theme()
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedSize(148, 46)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.section_bg};
+                color: {theme.text};
+                border: 1px solid {theme.border};
+                border-radius: 14px;
+                font-size: 14px;
+                font-weight: 700;
+                padding: 8px 16px;
+            }}
+            QPushButton:hover {{
+                background-color: {theme.section_alt_bg};
+            }}
+            QPushButton:pressed {{
+                background-color: {theme.input_bg};
+            }}
+        """)
+
+
+class HelpCircleButton(QPushButton):
+    def __init__(self, text: str = "?", parent=None) -> None:
+        super().__init__(text, parent)
+
+        theme = ThemeManager.get_theme()
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedSize(46, 46)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.primary};
+                color: white;
+                border: 1px solid {theme.border};
+                border-radius: 23px;
+                font-size: 20px;
+                font-weight: 800;
+                padding: 0px;
+            }}
+            QPushButton:hover {{
+                background-color: {theme.primary_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {theme.primary_pressed};
+            }}
+        """)
+    def __init__(self, text: str = "?", parent=None) -> None:
+        super().__init__(text, parent)
+
+        theme = ThemeManager.get_theme()
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedSize(48, 48)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.primary};
+                color: white;
+                border: 1px solid {theme.border};
+                border-radius: 24px;
+                font-size: 22px;
+                font-weight: 800;
+                padding: 0px;
+            }}
+            QPushButton:hover {{
+                background-color: {theme.primary_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {theme.primary_pressed};
+            }}
+        """)
