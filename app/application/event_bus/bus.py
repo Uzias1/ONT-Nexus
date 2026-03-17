@@ -1,55 +1,80 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from collections.abc import Callable
-from typing import TypeVar
+from queue import Empty, Queue
 
 from app.application.event_bus.events import DomainEvent
 from app.infrastructure.logging.logger import get_logger
 
 
-EventHandler = Callable[[DomainEvent], None]
-TEventName = TypeVar("TEventName", bound=str)
-
-
 class EventBus:
     """
-    Bus de eventos simple en memoria.
+    Bus de eventos en memoria basado en una cola thread-safe.
 
-    Permite suscribir handlers por nombre de evento y publicar eventos
-    sin acoplar directamente productores y consumidores.
+    Los productores publican eventos.
+    Los consumidores (por ejemplo la UI) hacen pull de la cola
+    mediante drain_events() o get_nowait().
     """
 
     def __init__(self) -> None:
-        self._subscribers: dict[str, list[EventHandler]] = defaultdict(list)
+        self._queue: Queue[DomainEvent] = Queue()
         self._logger = get_logger(self.__class__.__name__)
-
-    def subscribe(self, event_name: str, handler: EventHandler) -> None:
-        """
-        Registra un handler para un nombre de evento.
-        """
-        self._subscribers[event_name].append(handler)
-        self._logger.debug("Handler suscrito a evento '%s': %s", event_name, handler)
 
     def publish(self, event: DomainEvent) -> None:
         """
-        Publica un evento a todos los handlers suscritos.
+        Publica un evento en la cola interna del bus.
         """
-        handlers = self._subscribers.get(event.event_name, [])
-
+        self._queue.put(event)
         self._logger.debug(
-            "Publicando evento '%s' a %s handler(s). Payload=%s",
+            "Evento publicado: %s | payload=%s",
             event.event_name,
-            len(handlers),
             event.payload,
+            extra={"log_to_console": True, "log_to_file": False},
         )
 
-        for handler in handlers:
+    def get_nowait(self) -> DomainEvent | None:
+        """
+        Devuelve un evento inmediatamente si existe.
+        Si la cola está vacía, devuelve None.
+        """
+        try:
+            return self._queue.get_nowait()
+        except Empty:
+            return None
+
+    def drain_events(self, max_items: int | None = None) -> list[DomainEvent]:
+        """
+        Extrae múltiples eventos de la cola.
+
+        Parámetros:
+        - max_items:
+            Si es None, vacía toda la cola.
+            Si tiene valor, extrae hasta esa cantidad.
+        """
+        events: list[DomainEvent] = []
+        extracted = 0
+
+        while True:
+            if max_items is not None and extracted >= max_items:
+                break
+
             try:
-                handler(event)
-            except Exception:
-                self._logger.exception(
-                    "Error ejecutando handler para evento '%s'. Handler=%s",
-                    event.event_name,
-                    handler,
-                )
+                event = self._queue.get_nowait()
+            except Empty:
+                break
+
+            events.append(event)
+            extracted += 1
+
+        return events
+
+    def size(self) -> int:
+        """
+        Devuelve el tamaño aproximado de la cola.
+        """
+        return self._queue.qsize()
+
+    def is_empty(self) -> bool:
+        """
+        Indica si la cola está vacía.
+        """
+        return self._queue.empty()
