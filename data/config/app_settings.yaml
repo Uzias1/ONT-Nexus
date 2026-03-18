@@ -4,9 +4,10 @@ app:
   environment: "development"
 
 monitor:
-  heartbeat_interval_s: 1.0
-  poll_interval_s: 1.0
-  disconnect_threshold: 2
+  heartbeat_interval_s: .5
+  poll_interval_s: .5
+  disconnect_threshold: 1
+  ping_timeout_ms: 500
 
 workers:
   max_workers: 24

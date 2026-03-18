@@ -24,6 +24,7 @@ class MonitorConfig:
     heartbeat_interval_s: float
     poll_interval_s: float
     disconnect_threshold: int
+    ping_timeout_ms: int
 
 
 @dataclass(slots=True)
@@ -138,6 +139,7 @@ def _build_settings(
             heartbeat_interval_s=float(monitor_section.get("heartbeat_interval_s", 2.0)),
             poll_interval_s=float(monitor_section.get("poll_interval_s", 2.0)),
             disconnect_threshold=int(monitor_section.get("disconnect_threshold", 3)),
+            ping_timeout_ms=int(monitor_section.get("ping_timeout_ms", 1000)),
         ),
         workers=WorkerConfig(
             max_workers=int(workers_section.get("max_workers", 24)),
