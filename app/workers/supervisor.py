@@ -11,8 +11,8 @@ from app.application.event_bus.events import WorkerStateChangedEvent
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.logging.logger import get_logger, log_both, log_console
 from app.infrastructure.network.ping_service import PingService
-from app.workers.connection_monitor import ConnectionMonitor
 from app.workers.port_worker import PortWorker
+from app.workers.slot_connection_monitor import SlotConnectionMonitor
 from app.workers.worker_context import WorkerContext
 
 
@@ -33,15 +33,11 @@ class Supervisor:
 
         self._worker_contexts: dict[str, WorkerContext] = {}
         self._active_port_workers: dict[str, PortWorker] = {}
+        self._slot_monitors: dict[str, SlotConnectionMonitor] = {}
 
         self._heartbeat_interval_s = settings.monitor.heartbeat_interval_s
 
-        self._ping_service = PingService(timeout_ms=1000)
-        self._connection_monitor = ConnectionMonitor(
-            settings=settings,
-            supervisor=self,
-            ping_service=self._ping_service,
-        )
+        self._ping_service = PingService(timeout_ms=settings.monitor.ping_timeout_ms)
 
     # ==========================================================
     # Ciclo de vida
@@ -54,6 +50,7 @@ class Supervisor:
 
             self._stop_event.clear()
             self._initialize_worker_contexts()
+            self._initialize_slot_monitors()
 
             self._management_thread = threading.Thread(
                 target=self._run_management_loop,
@@ -62,7 +59,7 @@ class Supervisor:
             )
             self._management_thread.start()
 
-            self._connection_monitor.start()
+            self._start_slot_monitors()
 
             self._running = True
             log_both(self._logger, logging.INFO, "Supervisor iniciado correctamente.")
@@ -74,7 +71,7 @@ class Supervisor:
                 return
 
             self._stop_event.set()
-            self._connection_monitor.stop()
+            self._stop_slot_monitors()
 
             for worker_id in list(self._active_port_workers.keys()):
                 self.stop_port_worker(worker_id, release=False)
@@ -113,6 +110,32 @@ class Supervisor:
             "Contexts inicializados desde station_map: %s instancia(s).",
             len(self._worker_contexts),
         )
+
+    def _initialize_slot_monitors(self) -> None:
+        self._slot_monitors.clear()
+
+        for worker_id in self._worker_contexts:
+            self._slot_monitors[worker_id] = SlotConnectionMonitor(
+                settings=self._settings,
+                supervisor=self,
+                ping_service=self._ping_service,
+                worker_id=worker_id,
+            )
+
+        log_console(
+            self._logger,
+            logging.INFO,
+            "Monitores por slot inicializados: %s.",
+            len(self._slot_monitors),
+        )
+
+    def _start_slot_monitors(self) -> None:
+        for monitor in self._slot_monitors.values():
+            monitor.start()
+
+    def _stop_slot_monitors(self) -> None:
+        for monitor in self._slot_monitors.values():
+            monitor.stop()
 
     # ==========================================================
     # Hilo de gestión
@@ -221,6 +244,13 @@ class Supervisor:
     def get_worker_context(self, worker_id: str) -> WorkerContext | None:
         with self._lock:
             return self._worker_contexts.get(worker_id)
+
+    def get_worker_snapshot(self, worker_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                return None
+            return context.snapshot()
 
     def get_all_snapshots(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -341,6 +371,8 @@ class Supervisor:
         *,
         worker_id: str,
         connected: bool,
+        disconnect_expected: bool | None = None,
+        connection_reason: str | None = None,
     ) -> bool:
         with self._lock:
             context = self._worker_contexts.get(worker_id)
@@ -351,6 +383,12 @@ class Supervisor:
                 context.mark_connected()
             else:
                 context.mark_disconnected()
+
+            if disconnect_expected is not None:
+                context.set_disconnect_expected(disconnect_expected)
+
+            if connection_reason is not None:
+                context.set_metadata("connection_reason", connection_reason)
 
             self._publish_worker_state(context)
             return True
@@ -434,6 +472,8 @@ class Supervisor:
                 "expected_ip": snapshot["expected_ip"],
                 "device_ip": snapshot["device_ip"],
                 "connected": snapshot["connected"],
+                "disconnect_expected": snapshot["disconnect_expected"],
+                "connection_reason": snapshot["metadata"].get("connection_reason"),
                 "device_sn": snapshot["device_sn"],
                 "vendor": snapshot["vendor"],
                 "model": snapshot["model"],

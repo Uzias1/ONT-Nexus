@@ -13,15 +13,12 @@ if TYPE_CHECKING:
     from app.workers.supervisor import Supervisor
 
 
-class ConnectionMonitor:
+class SlotConnectionMonitor:
     """
-    Monitor de conectividad de slots/workers.
+    Monitor dedicado a un solo slot/worker.
 
-    Recorre periódicamente las IP esperadas configuradas en cada WorkerContext
-    y actualiza el estado de conexión mediante el Supervisor.
-
-    Usa un threshold de fallos consecutivos para evitar falsos negativos
-    antes de marcar un slot como desconectado.
+    Cada instancia revisa únicamente la IP esperada de su worker,
+    evitando que el estado de un slot dependa del tiempo de respuesta de los demás.
     """
 
     def __init__(
@@ -30,11 +27,13 @@ class ConnectionMonitor:
         settings: Settings,
         supervisor: Supervisor,
         ping_service: PingService,
+        worker_id: str,
     ) -> None:
         self._settings = settings
         self._supervisor = supervisor
         self._ping_service = ping_service
-        self._logger = get_logger(self.__class__.__name__)
+        self._worker_id = worker_id
+        self._logger = get_logger(f"{self.__class__.__name__}.{worker_id}")
 
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -43,9 +42,7 @@ class ConnectionMonitor:
 
         self._poll_interval_s = settings.monitor.poll_interval_s
         self._disconnect_threshold = max(1, settings.monitor.disconnect_threshold)
-
-        # Contador de fallos consecutivos por worker_id
-        self._failure_counts: dict[str, int] = {}
+        self._failure_count = 0
 
     # ==========================================================
     # Ciclo de vida
@@ -53,15 +50,13 @@ class ConnectionMonitor:
     def start(self) -> None:
         with self._lock:
             if self._running:
-                log_console(self._logger, logging.INFO, "ConnectionMonitor ya estaba en ejecución.")
                 return
 
             self._stop_event.clear()
-            self._failure_counts.clear()
-
+            self._failure_count = 0
             self._thread = threading.Thread(
                 target=self._run_loop,
-                name="ConnectionMonitorThread",
+                name=f"SlotMonitorThread-{self._worker_id}",
                 daemon=True,
             )
             self._thread.start()
@@ -70,7 +65,8 @@ class ConnectionMonitor:
             log_both(
                 self._logger,
                 logging.INFO,
-                "ConnectionMonitor iniciado correctamente. poll_interval=%ss threshold=%s",
+                "SlotConnectionMonitor iniciado. worker=%s poll=%ss threshold=%s",
+                self._worker_id,
                 self._poll_interval_s,
                 self._disconnect_threshold,
             )
@@ -78,7 +74,6 @@ class ConnectionMonitor:
     def stop(self) -> None:
         with self._lock:
             if not self._running:
-                log_console(self._logger, logging.INFO, "ConnectionMonitor ya estaba detenido.")
                 return
 
             self._stop_event.set()
@@ -87,9 +82,14 @@ class ConnectionMonitor:
                 self._thread.join(timeout=self._settings.workers.worker_join_timeout_s)
 
             self._running = False
-            self._failure_counts.clear()
+            self._failure_count = 0
 
-            log_both(self._logger, logging.INFO, "ConnectionMonitor detenido correctamente.")
+            log_both(
+                self._logger,
+                logging.INFO,
+                "SlotConnectionMonitor detenido. worker=%s",
+                self._worker_id,
+            )
 
     def is_running(self) -> bool:
         with self._lock:
@@ -100,69 +100,63 @@ class ConnectionMonitor:
     # ==========================================================
     def _run_loop(self) -> None:
         try:
-            log_console(self._logger, logging.INFO, "Loop de monitoreo iniciado.")
+            log_console(self._logger, logging.INFO, "Loop de monitoreo por slot iniciado.")
 
             while not self._stop_event.is_set():
                 self._monitor_once()
                 time.sleep(self._poll_interval_s)
 
-            log_console(self._logger, logging.INFO, "Loop de monitoreo finalizado.")
+            log_console(self._logger, logging.INFO, "Loop de monitoreo por slot finalizado.")
         except Exception:
             log_both(
                 self._logger,
                 logging.ERROR,
-                "Excepción no controlada en ConnectionMonitor.",
+                "Excepción no controlada en SlotConnectionMonitor %s.",
+                self._worker_id,
                 exc_info=True,
             )
             raise
 
     def _monitor_once(self) -> None:
-        snapshots = self._supervisor.get_all_snapshots()
+        snapshot = self._supervisor.get_worker_snapshot(self._worker_id)
+        if snapshot is None:
+            return
 
-        for snapshot in snapshots:
-            worker_id = str(snapshot["worker_id"])
-            expected_ip = snapshot.get("expected_ip")
-            if not expected_ip:
-                continue
+        expected_ip = snapshot.get("expected_ip")
+        if not expected_ip:
+            return
 
-            connected_before = bool(snapshot.get("connected", False))
-            disconnect_expected = bool(snapshot.get("disconnect_expected", False))
+        connected_before = bool(snapshot.get("connected", False))
+        disconnect_expected = bool(snapshot.get("disconnect_expected", False))
 
-            connected_now = self._ping_service.ping(str(expected_ip))
+        connected_now = self._ping_service.ping(str(expected_ip))
 
-            if connected_now:
-                self._handle_connected(
-                    worker_id=worker_id,
-                    expected_ip=str(expected_ip),
-                    connected_before=connected_before,
-                )
-            else:
-                self._handle_failed_ping(
-                    worker_id=worker_id,
-                    connected_before=connected_before,
-                    disconnect_expected=disconnect_expected,
-                )
+        if connected_now:
+            self._handle_connected(
+                expected_ip=str(expected_ip),
+                connected_before=connected_before,
+            )
+        else:
+            self._handle_failed_ping(
+                connected_before=connected_before,
+                disconnect_expected=disconnect_expected,
+            )
 
     # ==========================================================
-    # Transiciones de estado
+    # Transiciones
     # ==========================================================
-    def _handle_connected(
-        self,
-        *,
-        worker_id: str,
-        expected_ip: str,
-        connected_before: bool,
-    ) -> None:
-        self._failure_counts[worker_id] = 0
+    def _handle_connected(self, *, expected_ip: str, connected_before: bool) -> None:
+        self._failure_count = 0
 
-        # Actualizamos la IP detectada al menos al valor esperado.
         self._supervisor.update_worker_network(
-            worker_id=worker_id,
+            worker_id=self._worker_id,
             device_ip=expected_ip,
         )
         self._supervisor.set_worker_connected(
-            worker_id=worker_id,
+            worker_id=self._worker_id,
             connected=True,
+            disconnect_expected=False,
+            connection_reason="ping_ok",
         )
 
         if not connected_before:
@@ -170,48 +164,35 @@ class ConnectionMonitor:
                 self._logger,
                 logging.INFO,
                 "Equipo detectado en %s (%s).",
-                worker_id,
+                self._worker_id,
                 expected_ip,
             )
 
     def _handle_failed_ping(
         self,
         *,
-        worker_id: str,
         connected_before: bool,
         disconnect_expected: bool,
     ) -> None:
-        current_failures = self._failure_counts.get(worker_id, 0) + 1
-        self._failure_counts[worker_id] = current_failures
+        self._failure_count += 1
 
         log_console(
             self._logger,
             logging.DEBUG,
             "Fallo de ping en %s. consecutive_failures=%s/%s",
-            worker_id,
-            current_failures,
+            self._worker_id,
+            self._failure_count,
             self._disconnect_threshold,
         )
 
-        if current_failures < self._disconnect_threshold:
+        if self._failure_count < self._disconnect_threshold:
             return
 
-        self._handle_disconnected(
-            worker_id=worker_id,
-            connected_before=connected_before,
-            disconnect_expected=disconnect_expected,
-        )
-
-    def _handle_disconnected(
-        self,
-        *,
-        worker_id: str,
-        connected_before: bool,
-        disconnect_expected: bool,
-    ) -> None:
         self._supervisor.set_worker_connected(
-            worker_id=worker_id,
+            worker_id=self._worker_id,
             connected=False,
+            disconnect_expected=disconnect_expected,
+            connection_reason="expected_disconnect" if disconnect_expected else "lost_ping",
         )
 
         if connected_before:
@@ -220,12 +201,12 @@ class ConnectionMonitor:
                     self._logger,
                     logging.INFO,
                     "Desconexión esperada confirmada en %s.",
-                    worker_id,
+                    self._worker_id,
                 )
             else:
                 log_console(
                     self._logger,
                     logging.WARNING,
-                    "Desconexión confirmada en %s.",
-                    worker_id,
+                    "Desconexión real confirmada en %s.",
+                    self._worker_id,
                 )
