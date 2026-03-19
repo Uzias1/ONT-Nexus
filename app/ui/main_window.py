@@ -7,6 +7,7 @@ from app.ui.theme_manager import ThemeManager
 from app.ui.views.dashboard_view import DashboardView
 from app.ui.views.modificar import ModificarView
 from app.ui.views.testeo import TesteoView
+from app.ui.views.reportes import ReportesView
 
 
 class MainWindow(QMainWindow):
@@ -24,10 +25,12 @@ class MainWindow(QMainWindow):
         self.dashboard_view = DashboardView()
         self.modificar_view = ModificarView()
         self.testeo_view = TesteoView()
+        self.reportes_view = ReportesView()
 
         self.stack.addWidget(self.dashboard_view)
         self.stack.addWidget(self.modificar_view)
         self.stack.addWidget(self.testeo_view)
+        self.stack.addWidget(self.reportes_view)
 
         self.stack.setCurrentWidget(self.dashboard_view)
 
@@ -42,12 +45,14 @@ class MainWindow(QMainWindow):
     def _connect_navigation(self) -> None:
         self.dashboard_view.btn_modificar.clicked.connect(self.show_modificar)
         self.dashboard_view.btn_testear.clicked.connect(self.show_testeo)
+        self.dashboard_view.btn_reportes.clicked.connect(self.show_reportes)
 
         self.modificar_view.btn_cancelar.clicked.connect(self.show_dashboard)
         self.modificar_view.btn_aceptar.clicked.connect(self.handle_accept_changes)
         self.modificar_view.btn_restablecer.clicked.connect(self.handle_reset_values)
 
         self.testeo_view.header.btn_back.clicked.connect(self.show_dashboard)
+        self.reportes_view.btn_back.clicked.connect(self.show_dashboard)
 
         self.modificar_view.theme_changed.connect(self.apply_theme)
 
@@ -66,6 +71,7 @@ class MainWindow(QMainWindow):
         self.dashboard_view.apply_theme()
         self.modificar_view.apply_theme()
         self.testeo_view.apply_theme()
+        self.reportes_view.apply_theme()
         self.dashboard_view.status_bar.apply_theme()
 
         self._apply_native_titlebar_theme()
@@ -110,3 +116,7 @@ class MainWindow(QMainWindow):
     def show_testeo(self) -> None:
         self.setWindowTitle("Testeo")
         self.stack.setCurrentWidget(self.testeo_view)
+
+    def show_reportes(self) -> None:
+        self.setWindowTitle("Reportes")
+        self.stack.setCurrentWidget(self.reportes_view)
