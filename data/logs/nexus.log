@@ -225,3 +225,5 @@
 2026-03-19 13:06:27 | INFO     | app.main | MainThread | Inicialización de BD pendiente. Ruta configurada: data/runtime/nexus.db
 2026-03-19 13:12:13 | INFO     | app.main | MainThread | Iniciando ONT Tester NEXUS v0.1.0
 2026-03-19 13:12:13 | INFO     | app.main | MainThread | Inicialización de BD pendiente. Ruta configurada: data/runtime/nexus.db
+2026-03-19 13:27:40 | INFO     | app.main | MainThread | Iniciando ONT Tester NEXUS v0.1.0
+2026-03-19 13:27:40 | INFO     | app.main | MainThread | Inicialización de BD pendiente. Ruta configurada: data/runtime/nexus.db
