@@ -15,8 +15,8 @@ from PySide6.QtCharts import (
     QStackedBarSeries,
     QValueAxis,
 )
-from PySide6.QtCore import Qt, QDate, QPointF, QPoint, QMargins, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QPdfWriter, QPen, QBrush, QCursor
+from PySide6.QtCore import Qt, QDate, QPointF, QPoint, QMargins, QTimer, QRect, QSize
+from PySide6.QtGui import QColor, QFont, QPainter, QPdfWriter, QPen, QBrush, QCursor, QPixmap
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -278,6 +278,7 @@ class ReportesView(QWidget):
         self.ip_search_text = ""
 
         self.test_column_filters = {
+            "id": None,
             "sn": None,
             "mac": None,
             "ping": None,
@@ -567,6 +568,10 @@ class ReportesView(QWidget):
         self.btn_back = BackButton("Volver")
         self.btn_date = HeaderActionButton("Filtrar fechas")
         self.btn_export_pdf = HeaderActionButton("Exportar PDF")
+
+        # Funcionalidad reservada para una siguiente iteración.
+        # Se conserva el botón y su flujo en código, pero no se muestra en la interfaz actual.
+        self.btn_date.setVisible(False)
 
         self.actions_layout.addWidget(self.btn_back)
         self.actions_layout.addWidget(self.btn_date)
@@ -1160,6 +1165,7 @@ class ReportesView(QWidget):
         )
 
         self.filtered_test_records = self.data_source.filter_test_records(
+            id=self.test_column_filters["id"],
             sn=self.test_column_filters["sn"],
             mac=self.test_column_filters["mac"],
             ping=self.test_column_filters["ping"],
@@ -1215,15 +1221,14 @@ class ReportesView(QWidget):
         labels = []
 
         for field_name, header_text, _ in self.TEST_COLUMN_DEFS:
-            if field_name == "id":
-                labels.append(header_text)
-                continue
-
             active = self.test_column_filters.get(field_name) is not None
             suffix = "  ⏷●" if active else "  ⏷"
             labels.append(f"{header_text}{suffix}")
 
         self.test_table.setHorizontalHeaderLabels(labels)
+        labels = []
+
+       
 
     def _update_test_range_label(self) -> None:
         total = len(self.data_source.get_all_test_records())
@@ -1699,8 +1704,6 @@ class ReportesView(QWidget):
 
     def _open_test_header_filter_from_index(self, logical_index: int) -> None:
         field_name = self.TEST_COLUMN_DEFS[logical_index][0]
-        if field_name == "id":
-            return
         self._open_test_column_filter_menu(field_name, logical_index)
 
     def _open_test_column_filter_menu(self, field_name: str, logical_index: int | None = None) -> None:
@@ -1756,6 +1759,7 @@ class ReportesView(QWidget):
 
     def _clear_test_filters(self) -> None:
         self.test_column_filters = {
+            "id": None,
             "sn": None,
             "mac": None,
             "ping": None,
@@ -1792,89 +1796,88 @@ class ReportesView(QWidget):
         if not path:
             return
 
-        writer = QPdfWriter(path)
-        writer.setResolution(120)
-
-        painter = QPainter(writer)
-        if not painter.isActive():
-            self._show_themed_message(
-                QMessageBox.Warning,
-                "Error",
-                "No se pudo crear el PDF.",
-            )
-            return
-
         try:
-            theme = ThemeManager.get_theme()
-            summary = self.data_source.build_status_summary(self.filtered_records)
+            self.content.adjustSize()
+            self.content.updateGeometry()
+            self.content.repaint()
 
-            painter.setPen(QColor(theme.title))
-            title_font = QFont()
-            title_font.setPointSize(18)
-            title_font.setBold(True)
-            painter.setFont(title_font)
-            painter.drawText(60, 80, "Reporte ONT Nexus")
+            capture_size = self.content.size()
+            if capture_size.width() <= 0 or capture_size.height() <= 0:
+                capture_size = self.content.sizeHint()
 
-            body_font = QFont()
-            body_font.setPointSize(10)
-            painter.setFont(body_font)
-            painter.setPen(QColor(theme.text))
+            if capture_size.width() <= 0 or capture_size.height() <= 0:
+                self._show_themed_message(
+                    QMessageBox.Warning,
+                    "Error",
+                    "No se pudo capturar la vista para exportar el PDF.",
+                )
+                return
 
-            start_txt = self.start_date.isoformat() if self.start_date else "Sin límite"
-            end_txt = self.end_date.isoformat() if self.end_date else "Sin límite"
+            pixmap = QPixmap(capture_size)
+            pixmap.fill(Qt.transparent)
+            self.content.render(pixmap)
 
-            y = 130
-            painter.drawText(60, y, f"Rango: {start_txt} a {end_txt}")
-            y += 24
-            painter.drawText(60, y, f"Registros filtrados: {len(self.filtered_records)}")
-            y += 24
-            painter.drawText(60, y, f"Válidos: {summary['VALIDO']}")
-            y += 24
-            painter.drawText(60, y, f"Inválidos: {summary['INVALIDO']}")
-            y += 36
+            writer = QPdfWriter(path)
+            writer.setResolution(150)
 
-            headers = ["ID", "TIMESTAMP", "FABRICANTE", "MODELO", "PUERTO", "IP", "ESTATUS"]
-            x_positions = [60, 100, 250, 370, 485, 560, 670]
+            painter = QPainter(writer)
+            if not painter.isActive():
+                self._show_themed_message(
+                    QMessageBox.Warning,
+                    "Error",
+                    "No se pudo crear el PDF.",
+                )
+                return
 
-            painter.setPen(QColor(theme.title))
-            for x, header_text in zip(x_positions, headers):
-                painter.drawText(x, y, header_text)
+            page_rect = writer.pageLayout().paintRectPixels(writer.resolution())
+            margin = 24
+            target_width = max(1, page_rect.width() - (margin * 2))
+            target_height = max(1, page_rect.height() - (margin * 2))
 
-            y += 18
-            painter.setPen(QColor(theme.border))
-            painter.drawLine(60, y, 780, y)
-            y += 18
+            source_width = pixmap.width()
+            source_slice_height = max(1, int(target_height * source_width / target_width))
 
-            painter.setPen(QColor(theme.text))
-            export_rows = self.filtered_records[:20]
+            source_y = 0
+            first_page = True
 
-            for record in export_rows:
-                if y > 1120:
+            while source_y < pixmap.height():
+                if not first_page:
                     writer.newPage()
-                    y = 80
 
-                row_values = [
-                    str(record.id),
-                    record.timestamp.isoformat(sep=" ", timespec="seconds"),
-                    record.fabricante,
-                    record.modelo,
-                    str(record.puerto),
-                    record.ip,
-                    normalize_status(record.estatus),
-                ]
+                remaining_height = pixmap.height() - source_y
+                current_source_height = min(source_slice_height, remaining_height)
+                current_target_height = int(current_source_height * target_width / source_width)
 
-                for x, value in zip(x_positions, row_values):
-                    painter.drawText(x, y, value[:22])
+                source_rect = QRect(0, source_y, source_width, current_source_height)
+                target_rect = QRect(
+                    page_rect.left() + margin,
+                    page_rect.top() + margin,
+                    target_width,
+                    current_target_height,
+                )
 
-                y += 22
+                painter.drawPixmap(target_rect, pixmap, source_rect)
+
+                source_y += current_source_height
+                first_page = False
+
+            painter.end()
 
             self._show_themed_message(
                 QMessageBox.Information,
                 "PDF exportado",
-                "El reporte se exportó correctamente.",
+                f"El reporte visual se guardó correctamente en:\n {path}",
             )
-        finally:
-            painter.end()
+        except Exception as exc:
+            try:
+                painter.end()
+            except Exception:
+                pass
+            self._show_themed_message(
+                QMessageBox.Warning,
+                "Error",
+                f"No se pudo exportar el PDF visual.\n{exc}",
+            )
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

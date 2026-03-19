@@ -120,6 +120,7 @@ class ReportesDataSource:
 
     def filter_test_records(
         self,
+        id: str | None = None,
         sn: str | None = None,
         mac: str | None = None,
         ping: str | None = None,
@@ -134,6 +135,9 @@ class ReportesDataSource:
         mac_contains: str | None = None,
     ) -> list[TestResultRecord]:
         rows = self.get_all_test_records()
+
+        if id:
+            rows = [r for r in rows if str(r.id) == str(id)]
 
         if sn:
             rows = [r for r in rows if r.sn == sn]
@@ -174,7 +178,8 @@ class ReportesDataSource:
             rows = [r for r in rows if needle in r.mac.lower()]
 
         rows.sort(key=lambda x: (x.id, x.sn))
-        return rows
+        return rows 
+        
 
     def build_status_summary(self, records: Iterable[ReportRecord]) -> dict[str, int]:
         validos = 0
