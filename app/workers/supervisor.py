@@ -7,14 +7,19 @@ from typing import Any
 
 from app.application.dto.execution_test_request import ExecutionTestRequest
 from app.application.event_bus.bus import EventBus
-from app.application.event_bus.events import WorkerStateChangedEvent
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.logging.logger import get_logger, log_both, log_console
 from app.infrastructure.network.ping_service import PingService
 from app.workers.port_worker import PortWorker
 from app.workers.slot_connection_monitor import SlotConnectionMonitor
 from app.workers.worker_context import WorkerContext
+from app.infrastructure.network.arp_scanner import ArpScanner
 
+from app.application.event_bus.events import (
+    TestIndicatorChangedEvent,
+    WorkerGlobalVisualModeEvent,
+    WorkerStateChangedEvent,
+)
 
 class Supervisor:
     """
@@ -38,6 +43,7 @@ class Supervisor:
         self._heartbeat_interval_s = settings.monitor.heartbeat_interval_s
 
         self._ping_service = PingService(timeout_ms=settings.monitor.ping_timeout_ms)
+        self._arp_scanner = ArpScanner()
 
     # ==========================================================
     # Ciclo de vida
@@ -119,6 +125,7 @@ class Supervisor:
                 settings=self._settings,
                 supervisor=self,
                 ping_service=self._ping_service,
+                arp_scanner=self._arp_scanner,
                 worker_id=worker_id,
             )
 
@@ -342,7 +349,11 @@ class Supervisor:
             if context is None:
                 return False
 
-            context.bind_device(device_ip=device_ip, device_mac=mac)
+            if device_ip is None and mac is None:
+                context.clear_network_identity()
+            else:
+                context.bind_device(device_ip=device_ip, device_mac=mac)
+
             self._publish_worker_state(context)
             return True
 
@@ -482,4 +493,36 @@ class Supervisor:
             },
         )
 
+        self._event_bus.publish(event)
+
+    def publish_test_indicator(
+        self,
+        *,
+        worker_id: str,
+        test_name: str,
+        visual_state: str,
+        extra_payload: dict[str, Any] | None = None,
+    ) -> None:
+        event = TestIndicatorChangedEvent(
+            worker_id=worker_id,
+            test_name=test_name,
+            visual_state=visual_state,
+            extra_payload=extra_payload,
+        )
+        self._event_bus.publish(event)
+
+    def publish_global_visual_mode(
+        self,
+        *,
+        worker_id: str,
+        mode: str,
+        active: bool,
+        extra_payload: dict[str, Any] | None = None,
+    ) -> None:
+        event = WorkerGlobalVisualModeEvent(
+            worker_id=worker_id,
+            mode=mode,
+            active=active,
+            extra_payload=extra_payload,
+        )
         self._event_bus.publish(event)

@@ -1,4 +1,6 @@
 PyYAML
+PySide6
+selenium
 pytest
 ruff
 black

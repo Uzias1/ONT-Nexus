@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from app.application.dto.execution_test_request import ExecutionTestRequest
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.logging.logger import get_logger, log_both, log_console
+from app.infrastructure.vendors.fiberhome.fiberhome_test_runner import FiberhomeTestRunner
 
 if TYPE_CHECKING:
     from app.workers.supervisor import Supervisor
@@ -124,17 +125,36 @@ class PortWorker:
                 status="TESTING",
             )
 
-            for test_name in enabled_tests:
-                if self._stop_event.is_set():
-                    self._supervisor.set_worker_error(
-                        worker_id=self._worker_id,
-                        message="Ejecución cancelada.",
-                        status="FAIL",
-                        phase="CANCELLED",
-                    )
-                    return
+            vendor = (self._request.vendor or "").strip().upper()
+            if vendor == "FIBERHOME":
+                runner = FiberhomeTestRunner(
+                    settings=self._settings,
+                    supervisor=self._supervisor,
+                    worker_id=self._worker_id,
+                )
+                execution_result = runner.run(self._request)
 
-                self._execute_test(test_name)
+                context = self._supervisor.get_worker_context(self._worker_id)
+                if context is not None:
+                    context.set_metadata(
+                        "fiberhome_execution_result",
+                        {
+                            "identity": {
+                                "serial_number": execution_result.identity.serial_number,
+                                "mac_address": execution_result.identity.mac_address,
+                            },
+                            "tests": {
+                                name: {
+                                    "name": step.name,
+                                    "status": step.status,
+                                    "details": step.details,
+                                }
+                                for name, step in execution_result.tests.items()
+                            },
+                        },
+                    )
+            else:
+                raise ValueError(f"Vendor no soportado aún: {vendor or '(vacío)'}")
 
             self._supervisor.complete_worker(
                 worker_id=self._worker_id,

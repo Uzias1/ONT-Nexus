@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from app.application.event_bus.bus import EventBus
 from app.application.services.station_service import StationService
 from app.infrastructure.config.settings import Settings
+from app.shared.constants import build_default_execution_request
 
 
 TEST_LABELS = [
@@ -50,6 +51,7 @@ class PortUiState:
     expected_ip: str | None = None
     device_ip: str | None = None
     device_mac: str | None = None
+    global_mode: str | None = None
     circle_states: list[str] = field(default_factory=lambda: ["IDLE"] * 8)
 
 
@@ -91,9 +93,12 @@ class StatusCircle(QWidget):
         mapping = {
             "IDLE": QColor("#9CA3AF"),
             "RUNNING": QColor("#F59E0B"),
+            "COMPLETED": QColor("#F59E0B"),
             "PASS": QColor("#22C55E"),
             "FAIL": QColor("#EF4444"),
             "OFFLINE": QColor("#6B7280"),
+            "EXPECTED_RESET": QColor("#8B5CF6"),
+            "EXPECTED_UPDATE": QColor("#3B82F6"),
         }
         return mapping.get(state, QColor("#9CA3AF"))
 
@@ -165,6 +170,20 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._setup_timer()
 
+    @staticmethod
+    def _test_name_to_index(test_name: str) -> int | None:
+        mapping = {
+            "PING": 0,
+            "FACTORY_RESET": 1,
+            "SOFTWARE_UPDATE": 2,
+            "USB": 3,
+            "FIBER_TX": 4,
+            "FIBER_RX": 5,
+            "WIFI_2G": 6,
+            "WIFI_5G": 7,
+        }
+        return mapping.get(test_name)
+
     def _build_ui(self) -> None:
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -212,18 +231,7 @@ class MainWindow(QMainWindow):
         self._timer.start()
 
     def _start_port_execution(self, worker_id: str) -> None:
-        request_data = {
-            "worker_id": worker_id,
-            "tests": {
-                "factory_reset": True,
-                "software_update": True,
-                "usb": True,
-                "fiber_tx": True,
-                "fiber_rx": True,
-                "wifi_2g": True,
-                "wifi_5g": True,
-            },
-        }
+        request_data = build_default_execution_request(worker_id)
         self._station_service.start_execution(request_data)
 
     def _refresh_from_snapshot(self) -> None:
@@ -244,15 +252,36 @@ class MainWindow(QMainWindow):
             return
 
         for event in events:
-            if event.event_name != "worker.state_changed":
-                continue
-
             payload = event.payload
-            worker_id = str(payload.get("worker_id"))
-            if worker_id not in self._ports:
-                continue
 
-            self._apply_snapshot(worker_id, payload)
+            if event.event_name == "worker.state_changed":
+                worker_id = str(payload.get("worker_id"))
+                if worker_id not in self._ports:
+                    continue
+
+                self._apply_snapshot(worker_id, payload)
+
+            elif event.event_name == "test.indicator_changed":
+                worker_id = str(payload.get("worker_id"))
+                if worker_id not in self._ports:
+                    continue
+
+                test_name = str(payload.get("test_name", "")).upper()
+                visual_state = str(payload.get("visual_state", "IDLE")).upper()
+
+                index = self._test_name_to_index(test_name)
+                if index is not None:
+                    self._ports[worker_id].circle_states[index] = visual_state
+
+            elif event.event_name == "worker.global_visual_mode":
+                worker_id = str(payload.get("worker_id"))
+                if worker_id not in self._ports:
+                    continue
+
+                mode = str(payload.get("mode", "")).upper()
+                active = bool(payload.get("active", False))
+
+                self._ports[worker_id].global_mode = mode if active else None
 
         self._render()
 
@@ -266,11 +295,18 @@ class MainWindow(QMainWindow):
         port.device_ip = snapshot.get("device_ip")
         port.device_mac = snapshot.get("device_mac") or snapshot.get("mac")
 
-        port.circle_states = self._build_circle_states(
-            connected=port.connected,
-            status=port.status,
-            phase=port.phase,
-        )
+        # Solo recalculamos conectividad base y fase si no hay modo global activo
+        self._apply_base_states(port)
+
+    def _apply_base_states(self, port: PortUiState) -> None:
+        # El primer círculo siempre refleja conectividad
+        port.circle_states[0] = "RUNNING" if port.connected else "OFFLINE"
+
+        # Si el slot terminó en FAIL y hay fase conocida, pintar esa fase en rojo
+        if port.status in {"FAIL", "ERROR"}:
+            phase_index = PHASE_TO_INDEX.get(port.phase)
+            if phase_index is not None:
+                port.circle_states[phase_index] = "FAIL"
 
     def _build_circle_states(self, *, connected: bool, status: str, phase: str) -> list[str]:
         states = ["IDLE"] * 8
@@ -296,5 +332,39 @@ class MainWindow(QMainWindow):
         return states
 
     def _render(self) -> None:
-        self._port_1_widget.apply_state(self._ports["worker-01"])
-        self._port_2_widget.apply_state(self._ports["worker-02"])
+        for worker_id, port in self._ports.items():
+            render_states = list(port.circle_states)
+
+            if port.global_mode == "EXPECTED_RESET":
+                render_states = ["EXPECTED_RESET"] * 8
+            elif port.global_mode == "EXPECTED_UPDATE":
+                render_states = ["EXPECTED_UPDATE"] * 8
+
+            if worker_id == "worker-01":
+                self._port_1_widget.apply_state(
+                    PortUiState(
+                        worker_id=port.worker_id,
+                        connected=port.connected,
+                        status=port.status,
+                        phase=port.phase,
+                        expected_ip=port.expected_ip,
+                        device_ip=port.device_ip,
+                        device_mac=port.device_mac,
+                        global_mode=port.global_mode,
+                        circle_states=render_states,
+                    )
+                )
+            elif worker_id == "worker-02":
+                self._port_2_widget.apply_state(
+                    PortUiState(
+                        worker_id=port.worker_id,
+                        connected=port.connected,
+                        status=port.status,
+                        phase=port.phase,
+                        expected_ip=port.expected_ip,
+                        device_ip=port.device_ip,
+                        device_mac=port.device_mac,
+                        global_mode=port.global_mode,
+                        circle_states=render_states,
+                    )
+                )

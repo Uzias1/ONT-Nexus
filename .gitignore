@@ -1,2 +1,5 @@
 *.env
 *.log
+
+# Ignorar el driver
+tools/browser/

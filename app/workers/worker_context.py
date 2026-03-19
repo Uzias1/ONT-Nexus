@@ -183,3 +183,9 @@ class WorkerContext:
                 "error_message": self.error_message,
                 "metadata": dict(self.metadata),
             }
+        
+    def clear_network_identity(self) -> None:
+        with self._lock:
+            self.device_ip = None
+            self.device_mac = None
+            self._touch()
