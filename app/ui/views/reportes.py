@@ -292,6 +292,7 @@ class ReportesView(QWidget):
         }
 
         self.filtered_test_records: list[TestResultRecord] = []
+        self.test_id_search_text = ""
         self.test_sn_search_text = ""
         self.test_mac_search_text = ""
         self._test_progress_overlay_items = []
@@ -893,6 +894,16 @@ class ReportesView(QWidget):
         self.test_quick_filter_row = QHBoxLayout()
         self.test_quick_filter_row.setSpacing(12)
 
+        self.quick_id_label = QLabel("Filtrar ID")
+        self.quick_id_label.setObjectName("quickFilterLabel")
+
+        self.quick_id_input = QLineEdit()
+        self.quick_id_input.setObjectName("quickFilterInput")
+        self.quick_id_input.setPlaceholderText("Escribe un ID o fragmento...")
+        self.quick_id_input.setClearButtonEnabled(True)
+        self.quick_id_input.setMinimumWidth(160)
+        self.quick_id_input.setMaximumWidth(220)
+
         self.quick_sn_label = QLabel("Filtrar SN")
         self.quick_sn_label.setObjectName("quickFilterLabel")
 
@@ -919,6 +930,8 @@ class ReportesView(QWidget):
         self.test_quick_clear.setMinimumHeight(40)
 
         self.test_quick_filter_row.addStretch(1)
+        self.test_quick_filter_row.addWidget(self.quick_id_label)
+        self.test_quick_filter_row.addWidget(self.quick_id_input)
         self.test_quick_filter_row.addWidget(self.quick_sn_label)
         self.test_quick_filter_row.addWidget(self.quick_sn_input)
         self.test_quick_filter_row.addWidget(self.quick_mac_label)
@@ -981,6 +994,7 @@ class ReportesView(QWidget):
         self.quick_ip_input.textChanged.connect(self._on_ip_search_changed)
         self.quick_ip_clear.clicked.connect(self._clear_base_filters)
 
+        self.quick_id_input.textChanged.connect(self._on_test_id_search_changed)
         self.quick_sn_input.textChanged.connect(self._on_test_sn_search_changed)
         self.quick_mac_input.textChanged.connect(self._on_test_mac_search_changed)
         self.test_quick_clear.clicked.connect(self._clear_test_filters)
@@ -1180,6 +1194,13 @@ class ReportesView(QWidget):
             mac_contains=self.test_mac_search_text,
         )
 
+        if self.test_id_search_text:
+            needle = self.test_id_search_text.strip().lower()
+            self.filtered_test_records = [
+                r for r in self.filtered_test_records
+                if needle in str(r.id).lower()
+            ]
+
         self._update_table_headers()
         self._update_range_label()
         self._load_table()
@@ -1228,7 +1249,16 @@ class ReportesView(QWidget):
         self.test_table.setHorizontalHeaderLabels(labels)
         labels = []
 
-       
+        for field_name, header_text, _ in self.TEST_COLUMN_DEFS:
+            if field_name == "id":
+                labels.append(header_text)
+                continue
+
+            active = self.test_column_filters.get(field_name) is not None
+            suffix = "  ⏷●" if active else "  ⏷"
+            labels.append(f"{header_text}{suffix}")
+
+        self.test_table.setHorizontalHeaderLabels(labels)
 
     def _update_test_range_label(self) -> None:
         total = len(self.data_source.get_all_test_records())
@@ -1680,6 +1710,10 @@ class ReportesView(QWidget):
         self.ip_search_text = text.strip()
         self._refresh_all()
 
+    def _on_test_id_search_changed(self, text: str) -> None:
+        self.test_id_search_text = text.strip()
+        self._refresh_all()
+
     def _on_test_sn_search_changed(self, text: str) -> None:
         self.test_sn_search_text = text.strip()
         self._refresh_all()
@@ -1771,13 +1805,17 @@ class ReportesView(QWidget):
             "tx": None,
             "rx": None,
         }
+        self.test_id_search_text = ""
         self.test_sn_search_text = ""
         self.test_mac_search_text = ""
 
+        self.quick_id_input.blockSignals(True)
         self.quick_sn_input.blockSignals(True)
         self.quick_mac_input.blockSignals(True)
+        self.quick_id_input.clear()
         self.quick_sn_input.clear()
         self.quick_mac_input.clear()
+        self.quick_id_input.blockSignals(False)
         self.quick_sn_input.blockSignals(False)
         self.quick_mac_input.blockSignals(False)
 
@@ -1866,7 +1904,7 @@ class ReportesView(QWidget):
             self._show_themed_message(
                 QMessageBox.Information,
                 "PDF exportado",
-                f"El reporte visual se guardó correctamente en:\n {path}",
+                f"El reporte visual se guardó correctamente en:{path}",
             )
         except Exception as exc:
             try:
