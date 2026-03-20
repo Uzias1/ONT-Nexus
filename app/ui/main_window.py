@@ -47,9 +47,7 @@ class MainWindow(QMainWindow):
         self.dashboard_view.btn_testear.clicked.connect(self.show_testeo)
         self.dashboard_view.btn_reportes.clicked.connect(self.show_reportes)
 
-        self.modificar_view.btn_cancelar.clicked.connect(self.show_dashboard)
-        self.modificar_view.btn_aceptar.clicked.connect(self.handle_accept_changes)
-        self.modificar_view.btn_restablecer.clicked.connect(self.handle_reset_values)
+        self.modificar_view.back_requested.connect(self.show_dashboard)
 
         self.testeo_view.header.btn_back.clicked.connect(self.show_dashboard)
         self.reportes_view.btn_back.clicked.connect(self.show_dashboard)
@@ -96,14 +94,6 @@ class MainWindow(QMainWindow):
             )
         except Exception:
             pass
-
-    def handle_accept_changes(self) -> None:
-        if self.modificar_view.confirm_changes():
-            self.show_dashboard()
-
-    def handle_reset_values(self) -> None:
-        if self.modificar_view.confirm_reset():
-            self.modificar_view.reset_default_values()
 
     def show_dashboard(self) -> None:
         self.setWindowTitle("Vista principal")
