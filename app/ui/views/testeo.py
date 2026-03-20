@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QSizePolicy,
     QScrollArea,
-    QPushButton,
 )
 
 from app.ui.theme_manager import ThemeManager
@@ -233,9 +232,9 @@ class TesteoHeader(QFrame):
     def _build_ui(self) -> None:
         self.setObjectName("testeoHeader")
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 18, 22, 18)
-        layout.setSpacing(14)
+        self.layout_root = QVBoxLayout(self)
+        self.layout_root.setContentsMargins(22, 18, 22, 18)
+        self.layout_root.setSpacing(14)
 
         self.topbar = QHBoxLayout()
         self.topbar.setContentsMargins(0, 0, 0, 0)
@@ -254,9 +253,21 @@ class TesteoHeader(QFrame):
         self.subtitle = QLabel("Visualización general del estado de ejecución en los 24 puertos.")
         self.subtitle.setObjectName("subtitleLabel")
 
-        layout.addLayout(self.topbar)
-        layout.addWidget(self.title)
-        layout.addWidget(self.subtitle)
+        self.success_row = QHBoxLayout()
+        self.success_row.setContentsMargins(0, 0, 0, 0)
+        self.success_row.setSpacing(0)
+        self.success_row.addStretch()
+
+        self.success_label = QLabel("Pruebas exitosas:")
+        self.success_label.setObjectName("successLabel")
+        self.success_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.success_row.addWidget(self.success_label, 0, Qt.AlignRight)
+
+        self.layout_root.addLayout(self.topbar)
+        self.layout_root.addWidget(self.title)
+        self.layout_root.addWidget(self.subtitle)
+        self.layout_root.addLayout(self.success_row)
 
     def apply_theme(self) -> None:
         theme = ThemeManager.get_theme()
@@ -272,6 +283,7 @@ class TesteoHeader(QFrame):
                 font-size: 28px;
                 font-weight: 800;
                 background: transparent;
+                border: none;
             }}
 
             QLabel#subtitleLabel {{
@@ -279,6 +291,17 @@ class TesteoHeader(QFrame):
                 font-size: 14px;
                 font-weight: 500;
                 background: transparent;
+                border: none;
+            }}
+
+            QLabel#successLabel {{
+                color: {theme.text};
+                font-size: 15px;
+                font-weight: 800;
+                background: transparent;
+                border: none;
+                padding: 0px;
+                margin: 0px;
             }}
         """)
 
@@ -398,6 +421,7 @@ class TesteoView(QWidget):
 
         title_size = min(max(int(w / 44), 22), 34)
         subtitle_size = min(max(int(w / 95), 12), 15)
+        success_size = min(max(int(w / 82), 13), 17)
         port_font_size = min(max(int(w / 95), 12), 17)
         circle_diameter = min(max(int(w / 42), 24), 34)
         circle_spacing = min(max(int(w / 78), 10), 16)
@@ -413,6 +437,11 @@ class TesteoView(QWidget):
         subtitle_font = self.header.subtitle.font()
         subtitle_font.setPointSize(subtitle_size)
         self.header.subtitle.setFont(subtitle_font)
+
+        success_font = self.header.success_label.font()
+        success_font.setPointSize(success_size)
+        success_font.setWeight(QFont.Bold)
+        self.header.success_label.setFont(success_font)
 
         for row in self.left_rows + self.right_rows:
             row.set_scale(circle_diameter, port_font_size)
