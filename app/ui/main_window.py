@@ -183,7 +183,7 @@ class MainWindow(QMainWindow):
             "WIFI_5G": 7,
         }
         return mapping.get(test_name)
-
+    
     def _build_ui(self) -> None:
         central_widget = QWidget()
         self.setCentralWidget(central_widget)

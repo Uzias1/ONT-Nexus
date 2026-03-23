@@ -146,14 +146,26 @@ class SlotConnectionMonitor:
             device_ip=expected_ip,
             mac=detected_mac,
         )
-        self._supervisor.set_worker_connected(
-            worker_id=self._worker_id,
-            connected=True,
-            disconnect_expected=False,
-            connection_reason="ping_ok",
-        )
 
-        if not connected_before:
+        # - Si ya estaba conectado, no debemos limpiar disconnect_expected,
+        #   porque podríamos estar justo antes del reboot esperado.
+        # - Solo lo limpiamos cuando realmente hubo reconexión
+        #   (connected_before == False y ahora volvió a responder).
+        if connected_before:
+            self._supervisor.set_worker_connected(
+                worker_id=self._worker_id,
+                connected=True,
+                disconnect_expected=None,
+                connection_reason="ping_ok",
+            )
+        else:
+            self._supervisor.set_worker_connected(
+                worker_id=self._worker_id,
+                connected=True,
+                disconnect_expected=False,
+                connection_reason="reconnected",
+            )
+
             log_console(
                 self._logger,
                 logging.INFO,
