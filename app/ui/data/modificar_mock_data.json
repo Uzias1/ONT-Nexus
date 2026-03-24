@@ -4,7 +4,8 @@
     "valor_minimo_tx": -8.0,
     "valor_maximo_tx": 3.0,
     "valor_minimo_rx": -27.0,
-    "valor_maximo_rx": -8.0
+    "valor_maximo_rx": -8.0,
+    "ultima_modificacion": "2026-02-28 14:00:00"
   },
   "modelos": [
     {

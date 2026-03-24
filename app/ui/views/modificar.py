@@ -99,8 +99,6 @@ class CrudModeButton(QPushButton):
                 background-color: {hover};
             }}
         """)
-
-
 class SweetAlertDialog(QDialog):
     def __init__(
         self,
@@ -178,38 +176,32 @@ class SweetAlertDialog(QDialog):
             QDialog {{
                 background-color: {theme.app_bg};
             }}
-
             QFrame#sweetCard {{
                 background-color: {theme.main_card_bg};
                 border: 1px solid {theme.border};
                 border-radius: 16px;
             }}
-
             QLabel#sweetTitle {{
                 color: {theme.title};
                 font-size: 20px;
                 font-weight: 800;
                 background: transparent;
             }}
-
             QLabel#sweetMessage {{
                 color: {theme.text};
                 font-size: 14px;
                 background: transparent;
             }}
-
             QFrame#detailsBox {{
                 background-color: {theme.section_bg};
                 border: 1px solid {theme.border};
                 border-radius: 12px;
             }}
-
             QFrame#detailsBox QLabel {{
                 color: {theme.text};
                 background: transparent;
                 font-size: 13px;
             }}
-
             QPushButton#sweetOkButton {{
                 min-width: 130px;
                 min-height: 42px;
@@ -221,15 +213,12 @@ class SweetAlertDialog(QDialog):
                 color: white;
                 border: 1px solid #4D7F1F;
             }}
-
             QPushButton#sweetOkButton:hover {{
                 background-color: #6FAE34;
             }}
-
             QPushButton#sweetOkButton:pressed {{
                 background-color: #629C2E;
             }}
-
             QPushButton#sweetCancelButton {{
                 min-width: 130px;
                 min-height: 42px;
@@ -241,11 +230,9 @@ class SweetAlertDialog(QDialog):
                 color: white;
                 border: 1px solid #A73732;
             }}
-
             QPushButton#sweetCancelButton:hover {{
                 background-color: #D94B44;
             }}
-
             QPushButton#sweetCancelButton:pressed {{
                 background-color: #C93C36;
             }}
@@ -342,7 +329,7 @@ class PanelForm(QWidget):
         self.actions.setSpacing(14)
         self.actions.setAlignment(Qt.AlignCenter)
 
-        self.btn_ok = MiniActionButton("✓", "#7BBE3C", "#6FAE34", "#629C2E", "#4D7F1F")
+        self.btn_ok     = MiniActionButton("✓", "#7BBE3C", "#6FAE34", "#629C2E", "#4D7F1F")
         self.btn_cancel = MiniActionButton("✕", "#E95A52", "#D94B44", "#C93C36", "#A73732")
 
         self.btn_ok.clicked.connect(self.submitted.emit)
@@ -377,8 +364,6 @@ class PanelForm(QWidget):
 
     def get_values(self) -> list[tuple[str, str]]:
         return [(row.label.text(), row.input.text().strip()) for row in self.rows]
-
-
 class FilterableTableWidget(QTableWidget):
     def __init__(self, columns: list[str], filterable_columns: list[bool] | None = None, parent=None) -> None:
         super().__init__(0, len(columns), parent)
@@ -388,7 +373,7 @@ class FilterableTableWidget(QTableWidget):
         self.filters: dict[int, str | None] = {i: None for i in range(len(columns))}
 
         header_labels = [
-            f"{name}  ▼" if self.filterable_columns[i] else name
+            f"{name} ▼" if self.filterable_columns[i] else name
             for i, name in enumerate(columns)
         ]
         self.setHorizontalHeaderLabels(header_labels)
@@ -413,7 +398,6 @@ class FilterableTableWidget(QTableWidget):
 
     def apply_theme(self) -> None:
         theme = ThemeManager.get_theme()
-
         self.setStyleSheet(f"""
             QTableWidget {{
                 background-color: rgba(255, 255, 255, 0.04);
@@ -425,12 +409,10 @@ class FilterableTableWidget(QTableWidget):
                 alternate-background-color: rgba(255, 255, 255, 0.05);
                 padding: 4px;
             }}
-
             QTableWidget::item {{
                 background: transparent;
                 padding: 6px 8px;
             }}
-
             QHeaderView::section {{
                 background-color: {theme.section_alt_bg};
                 color: {theme.title};
@@ -454,11 +436,10 @@ class FilterableTableWidget(QTableWidget):
         menu = QMenu(self)
 
         theme = ThemeManager.get_theme()
-        menu_bg = "#0F1720" if ThemeManager.is_dark() else "#A9BCD0"
+        menu_bg     = "#0F1720" if ThemeManager.is_dark() else "#A9BCD0"
         menu_border = theme.border
-        menu_text = "#F4F7FB" if ThemeManager.is_dark() else "#17324D"
-        menu_hover = theme.section_alt_bg if ThemeManager.is_dark() else "#8EA8C1"
-        menu_selected = theme.primary if ThemeManager.is_dark() else "#6F8EAD"
+        menu_text   = "#F4F7FB" if ThemeManager.is_dark() else "#17324D"
+        menu_hover  = theme.section_alt_bg if ThemeManager.is_dark() else "#8EA8C1"
 
         menu.setStyleSheet(f"""
             QMenu {{
@@ -595,7 +576,6 @@ class CrudPanel(QFrame):
         wrapper_layout.addStretch(1)
 
         self.body_layout.addWidget(wrapper, 1)
-
         self.current_widget = label
 
     def _show_form(self, rows: list[tuple[str, str]]) -> None:
@@ -621,10 +601,11 @@ class CrudPanel(QFrame):
 
         labels = [
             ("Porcentaje mínimo de aceptación wifi", str(valores.get("porcentaje_minimo_aceptacion_wifi", ""))),
-            ("Valor mínimo de TX", str(valores.get("valor_minimo_tx", ""))),
-            ("Valor máximo de TX", str(valores.get("valor_maximo_tx", ""))),
-            ("Valor mínimo de RX", str(valores.get("valor_minimo_rx", ""))),
-            ("Valor máximo de RX", str(valores.get("valor_maximo_rx", ""))),
+            ("Valor mínimo de TX",  str(valores.get("valor_minimo_tx", ""))),
+            ("Valor máximo de TX",  str(valores.get("valor_maximo_tx", ""))),
+            ("Valor mínimo de RX",  str(valores.get("valor_minimo_rx", ""))),
+            ("Valor máximo de RX",  str(valores.get("valor_maximo_rx", ""))),
+            ("Última fecha de modificación", str(valores.get("ultima_modificacion", "N/A"))),
         ]
 
         for i, (label_text, value_text) in enumerate(labels):
@@ -694,7 +675,714 @@ class CrudPanel(QFrame):
         wrapper = self._wrap_table_widget(table)
         self.body_layout.addWidget(wrapper, 1)
         self.current_widget = table
+    # ── UPDATE helpers ─────────────────────────────────────────────────────
 
+    def _make_update_buttons(self, on_accept, on_cancel, on_reset) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(14)
+        row.setAlignment(Qt.AlignCenter)
+
+        btn_ok     = MiniActionButton("✓", "#7BBE3C", "#6FAE34", "#629C2E", "#4D7F1F")
+        btn_reset  = MiniActionButton("↺", "#4A90D9", "#3A7FC9", "#2A6FB9", "#1A5FA9")
+        btn_cancel = MiniActionButton("✕", "#E95A52", "#D94B44", "#C93C36", "#A73732")
+
+        btn_ok.clicked.connect(on_accept)
+        btn_reset.clicked.connect(on_reset)
+        btn_cancel.clicked.connect(on_cancel)
+
+        row.addWidget(btn_ok)
+        row.addWidget(btn_reset)
+        row.addWidget(btn_cancel)
+        return row
+
+    # ── UPDATE Parámetros ───────────────────────────────────────────────────
+
+    def _show_parametros_update(self, valores: dict) -> None:
+        self._clear_body()
+        self._update_original_parametros = dict(valores)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        fields_meta = [
+            ("porcentaje_minimo_aceptacion_wifi", "Porcentaje mínimo de aceptación wifi"),
+            ("valor_minimo_tx",  "Valor mínimo de TX"),
+            ("valor_maximo_tx",  "Valor máximo de TX"),
+            ("valor_minimo_rx",  "Valor mínimo de RX"),
+            ("valor_maximo_rx",  "Valor máximo de RX"),
+        ]
+        self._update_parametros_inputs: dict[str, QLineEdit] = {}
+
+        for key, label_text in fields_meta:
+            row_w = QWidget()
+            row_w.setStyleSheet("background: transparent;")
+            row_layout = QGridLayout(row_w)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setHorizontalSpacing(12)
+
+            lbl = QLabel(label_text)
+            lbl.setObjectName("fieldLabel")
+
+            inp = QLineEdit()
+            inp.setObjectName("panelInput")
+            inp.setPlaceholderText(str(valores.get(key, "")))
+            inp.setAlignment(Qt.AlignRight)
+
+            row_layout.addWidget(lbl, 0, 0)
+            row_layout.addWidget(inp, 0, 1)
+            row_layout.setColumnStretch(0, 3)
+            row_layout.setColumnStretch(1, 1)
+
+            layout.addWidget(row_w)
+            self._update_parametros_inputs[key] = inp
+
+        layout.addStretch(1)
+        scroll.setWidget(container)
+        self.body_layout.addWidget(scroll, 1)
+
+        btn_row = self._make_update_buttons(
+            self._submit_parametros_update,
+            self._cancel_parametros_update,
+            self._reset_parametros_update,
+        )
+        self.body_layout.addLayout(btn_row)
+
+    def _submit_parametros_update(self) -> None:
+        orig = self._update_original_parametros
+        changes = []
+        for key, inp in self._update_parametros_inputs.items():
+            text = inp.text().strip()
+            if text:
+                changes.append((key, f"{orig.get(key, '?')}  →  {text}"))
+
+        if not changes:
+            SweetAlertDialog(
+                title="Sin cambios",
+                message="No has escrito ningún valor nuevo.",
+                confirm_text="Entendido",
+                cancel_text="Cerrar",
+                parent=self,
+            ).exec()
+            return
+
+        dlg = SweetAlertDialog(
+            title="Confirmar actualización",
+            message="Se actualizarán los siguientes parámetros:",
+            details=changes,
+            confirm_text="Sí, actualizar",
+            cancel_text="Cancelar",
+            parent=self,
+        )
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        SweetAlertDialog(
+            title="Actualizado correctamente",
+            message="Los parámetros han sido actualizados.",
+            details=changes,
+            confirm_text="Aceptar",
+            cancel_text="Cerrar",
+            parent=self,
+        ).exec()
+        for inp in self._update_parametros_inputs.values():
+            inp.clear()
+
+    def _cancel_parametros_update(self) -> None:
+        dlg = SweetAlertDialog(
+            title="Cancelar edición",
+            message="¿Deseas cancelar? Los cambios no guardados se perderán.",
+            confirm_text="Sí, cancelar",
+            cancel_text="Seguir editando",
+            parent=self,
+        )
+        if dlg.exec() == QDialog.Accepted:
+            for inp in self._update_parametros_inputs.values():
+                inp.clear()
+
+    def _reset_parametros_update(self) -> None:
+        dlg = SweetAlertDialog(
+            title="Restablecer valores",
+            message="¿Deseas restablecer los campos a sus valores originales?",
+            confirm_text="Sí, restablecer",
+            cancel_text="Cancelar",
+            parent=self,
+        )
+        if dlg.exec() == QDialog.Accepted:
+            for inp in self._update_parametros_inputs.values():
+                inp.clear()
+
+    # ── UPDATE Modelos ──────────────────────────────────────────────────────
+
+    def _show_modelos_update(self, modelos: list) -> None:
+        self._clear_body()
+        self._update_modelos_all: list[dict] = modelos
+
+        outer = QVBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(10)
+        lbl_search = QLabel("Filtrar nombre:")
+        lbl_search.setObjectName("fieldLabel")
+        self._modelos_search = QLineEdit()
+        self._modelos_search.setObjectName("panelInput")
+        self._modelos_search.setPlaceholderText("Escribe un nombre o fragmento...")
+        self._modelos_search.textChanged.connect(self._filter_modelos_update)
+        search_row.addWidget(lbl_search)
+        search_row.addWidget(self._modelos_search, 1)
+
+        search_widget = QWidget()
+        search_widget.setStyleSheet("background: transparent;")
+        search_widget.setLayout(search_row)
+        outer.addWidget(search_widget)
+
+        self._modelos_scroll_area = QScrollArea()
+        self._modelos_scroll_area.setWidgetResizable(True)
+        self._modelos_scroll_area.setFrameShape(QFrame.NoFrame)
+        self._modelos_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._modelos_container = QWidget()
+        self._modelos_container.setStyleSheet("background: transparent;")
+        self._modelos_rows_layout = QVBoxLayout(self._modelos_container)
+        self._modelos_rows_layout.setSpacing(6)
+        self._modelos_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._modelos_scroll_area.setWidget(self._modelos_container)
+        outer.addWidget(self._modelos_scroll_area, 1)
+
+        wrap = QWidget()
+        wrap.setStyleSheet("background: transparent;")
+        wrap.setLayout(outer)
+        self.body_layout.addWidget(wrap, 1)
+
+        btn_row = self._make_update_buttons(
+            self._submit_modelos_update,
+            self._cancel_modelos_update,
+            self._reset_modelos_update,
+        )
+        self.body_layout.addLayout(btn_row)
+        self._build_modelos_update_rows(modelos)
+
+    def _build_modelos_update_rows(self, modelos: list) -> None:
+        while self._modelos_rows_layout.count():
+            item = self._modelos_rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        self._modelos_inputs: list[dict[str, QLineEdit]] = []
+
+        headers_widget = QWidget()
+        headers_widget.setStyleSheet("background: transparent;")
+        h_layout = QGridLayout(headers_widget)
+        h_layout.setContentsMargins(4, 0, 4, 0)
+        for col, text in enumerate(["Nombre", "Versión de software", "Fabricante"]):
+            lbl = QLabel(text)
+            lbl.setObjectName("fieldLabel")
+            lbl.setAlignment(Qt.AlignCenter)
+            h_layout.addWidget(lbl, 0, col)
+        self._modelos_rows_layout.addWidget(headers_widget)
+
+        for item in modelos:
+            row_w = QWidget()
+            row_w.setStyleSheet("background: transparent;")
+            row_l = QGridLayout(row_w)
+            row_l.setContentsMargins(2, 2, 2, 2)
+            row_l.setSpacing(6)
+
+            inp_nombre  = QLineEdit()
+            inp_nombre.setObjectName("panelInput")
+            inp_nombre.setPlaceholderText(str(item.get("nombre", "")))
+
+            inp_version = QLineEdit()
+            inp_version.setObjectName("panelInput")
+            inp_version.setPlaceholderText(str(item.get("version_software", "")))
+
+            inp_fab = QLineEdit()
+            inp_fab.setObjectName("panelInput")
+            inp_fab.setPlaceholderText(str(item.get("fabricante", "")))
+
+            row_l.addWidget(inp_nombre,  0, 0)
+            row_l.addWidget(inp_version, 0, 1)
+            row_l.addWidget(inp_fab,     0, 2)
+            self._modelos_rows_layout.addWidget(row_w)
+            self._modelos_inputs.append({
+                "original": item,
+                "nombre": inp_nombre,
+                "version_software": inp_version,
+                "fabricante": inp_fab,
+            })
+
+        self._modelos_rows_layout.addStretch(1)
+
+    def _filter_modelos_update(self, text: str) -> None:
+        filtered = [m for m in self._update_modelos_all
+                    if text.lower() in m.get("nombre", "").lower()] if text else self._update_modelos_all
+        self._build_modelos_update_rows(filtered)
+
+    def _submit_modelos_update(self) -> None:
+        changes = []
+        for entry in self._modelos_inputs:
+            orig = entry["original"]
+            for field in ["nombre", "version_software", "fabricante"]:
+                new_val = entry[field].text().strip()
+                if new_val and new_val != str(orig.get(field, "")):
+                    changes.append((f"{orig.get('nombre','')} → {field}", new_val))
+
+        if not changes:
+            SweetAlertDialog("Sin cambios", "No has modificado ningún valor.",
+                confirm_text="Entendido", cancel_text="Cerrar", parent=self).exec()
+            return
+
+        dlg = SweetAlertDialog("Confirmar actualización",
+            "Se actualizarán los siguientes modelos:",
+            details=changes, confirm_text="Sí, actualizar",
+            cancel_text="Cancelar", parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        SweetAlertDialog("Actualizado", "Los modelos fueron actualizados correctamente.",
+            details=changes, confirm_text="Aceptar", cancel_text="Cerrar", parent=self).exec()
+        for entry in self._modelos_inputs:
+            for field in ["nombre", "version_software", "fabricante"]:
+                entry[field].clear()
+
+    def _cancel_modelos_update(self) -> None:
+        dlg = SweetAlertDialog("Cancelar edición",
+            "¿Deseas cancelar? Los cambios no guardados se perderán.",
+            confirm_text="Sí, cancelar", cancel_text="Seguir editando", parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            for entry in self._modelos_inputs:
+                for field in ["nombre", "version_software", "fabricante"]:
+                    entry[field].clear()
+
+    def _reset_modelos_update(self) -> None:
+        dlg = SweetAlertDialog("Restablecer valores",
+            "¿Restablecer todos los campos a su valor original?",
+            confirm_text="Sí, restablecer", cancel_text="Cancelar", parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            for entry in self._modelos_inputs:
+                for field in ["nombre", "version_software", "fabricante"]:
+                    entry[field].clear()
+    # ── UPDATE Fabricante ───────────────────────────────────────────────────
+
+    def _show_fabricante_update(self, fabricantes: list) -> None:
+        self._clear_body()
+        self._update_fabricantes_all: list[dict] = fabricantes
+
+        outer = QVBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(10)
+        lbl_s = QLabel("Filtrar fabricante:")
+        lbl_s.setObjectName("fieldLabel")
+        self._fab_search = QLineEdit()
+        self._fab_search.setObjectName("panelInput")
+        self._fab_search.setPlaceholderText("Escribe un fabricante o fragmento...")
+        self._fab_search.textChanged.connect(self._filter_fabricante_update)
+        search_row.addWidget(lbl_s)
+        search_row.addWidget(self._fab_search, 1)
+
+        sw = QWidget()
+        sw.setStyleSheet("background: transparent;")
+        sw.setLayout(search_row)
+        outer.addWidget(sw)
+
+        self._fab_scroll = QScrollArea()
+        self._fab_scroll.setWidgetResizable(True)
+        self._fab_scroll.setFrameShape(QFrame.NoFrame)
+        self._fab_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._fab_container = QWidget()
+        self._fab_container.setStyleSheet("background: transparent;")
+        self._fab_rows_layout = QVBoxLayout(self._fab_container)
+        self._fab_rows_layout.setSpacing(6)
+        self._fab_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._fab_scroll.setWidget(self._fab_container)
+        outer.addWidget(self._fab_scroll, 1)
+
+        wrap = QWidget()
+        wrap.setStyleSheet("background: transparent;")
+        wrap.setLayout(outer)
+        self.body_layout.addWidget(wrap, 1)
+
+        btn_row = self._make_update_buttons(
+            self._submit_fabricante_update,
+            self._cancel_fabricante_update,
+            self._reset_fabricante_update,
+        )
+        self.body_layout.addLayout(btn_row)
+        self._build_fabricante_update_rows(fabricantes)
+
+    def _build_fabricante_update_rows(self, fabricantes: list) -> None:
+        while self._fab_rows_layout.count():
+            item = self._fab_rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        self._fab_inputs: list[dict] = []
+
+        grid_widget = QWidget()
+        grid_widget.setStyleSheet("background: transparent;")
+        grid = QGridLayout(grid_widget)
+        grid.setContentsMargins(4, 0, 4, 0)
+        grid.setSpacing(6)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnMinimumWidth(0, 60)
+
+        # Header
+        lbl_h0 = QLabel("Nº fila")
+        lbl_h0.setObjectName("fieldLabel")
+        lbl_h0.setAlignment(Qt.AlignCenter)
+        lbl_h1 = QLabel("Fabricante")
+        lbl_h1.setObjectName("fieldLabel")
+        lbl_h1.setAlignment(Qt.AlignCenter)
+        grid.addWidget(lbl_h0, 0, 0)
+        grid.addWidget(lbl_h1, 0, 1)
+
+        # Filas de datos
+        for row_idx, item in enumerate(fabricantes, start=1):
+            lbl_num = QLabel(str(item.get("numero_fila", "")))
+            lbl_num.setObjectName("valueLabel")
+            lbl_num.setAlignment(Qt.AlignCenter)
+
+            inp_fab = QLineEdit()
+            inp_fab.setObjectName("panelInput")
+            inp_fab.setPlaceholderText(str(item.get("fabricante", "")))
+
+            grid.addWidget(lbl_num, row_idx, 0)
+            grid.addWidget(inp_fab, row_idx, 1)
+            self._fab_inputs.append({"original": item, "fabricante": inp_fab})
+
+            self._fab_rows_layout.addWidget(grid_widget)
+            self._fab_rows_layout.addStretch(1)
+
+            while self._fab_rows_layout.count():
+                item = self._fab_rows_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+
+            self._fab_inputs: list[dict] = []
+
+            # Header
+            hdr = QWidget()
+            hdr.setStyleSheet("background: transparent;")
+            h_l = QGridLayout(hdr)
+            h_l.setContentsMargins(4, 0, 4, 0)
+            h_l.setSpacing(6)
+            lbl_h0 = QLabel("Nº fila")
+            lbl_h0.setObjectName("fieldLabel")
+            lbl_h0.setAlignment(Qt.AlignCenter)
+            lbl_h0.setFixedWidth(48)
+            lbl_h1 = QLabel("Fabricante")
+            lbl_h1.setObjectName("fieldLabel")
+            lbl_h1.setAlignment(Qt.AlignCenter)
+            h_l.addWidget(lbl_h0, 0, 0)
+            h_l.addWidget(lbl_h1, 0, 1)
+            h_l.setColumnStretch(0, 0)
+            h_l.setColumnStretch(1, 1)
+            self._fab_rows_layout.addWidget(hdr)
+
+            # Filas de datos
+            for item in fabricantes:
+                rw = QWidget()
+                rw.setStyleSheet("background: transparent;")
+                rl = QGridLayout(rw)
+                rl.setContentsMargins(2, 2, 2, 2)
+                rl.setSpacing(6)
+
+                lbl_num = QLabel(str(item.get("numero_fila", "")))
+                lbl_num.setObjectName("valueLabel")
+                lbl_num.setAlignment(Qt.AlignCenter)
+                lbl_num.setFixedWidth(48)
+
+                inp_fab = QLineEdit()
+                inp_fab.setObjectName("panelInput")
+                inp_fab.setPlaceholderText(str(item.get("fabricante", "")))
+
+                rl.addWidget(lbl_num, 0, 0)
+                rl.addWidget(inp_fab, 0, 1)
+                rl.setColumnStretch(0, 0)
+                rl.setColumnStretch(1, 1)
+                self._fab_rows_layout.addWidget(rw)
+                self._fab_inputs.append({"original": item, "fabricante": inp_fab})
+
+                self._fab_rows_layout.addStretch(1)
+
+                while self._fab_rows_layout.count():
+                    item = self._fab_rows_layout.takeAt(0)
+                    if item.widget():
+                        item.widget().deleteLater()
+
+                self._fab_inputs: list[dict] = []
+
+                hdr = QWidget()
+                hdr.setStyleSheet("background: transparent;")
+                h_l = QGridLayout(hdr)
+                h_l.setContentsMargins(4, 0, 4, 0)
+                for col, text in enumerate(["Nº fila", "Fabricante"]):
+                    lb = QLabel(text)
+                    lb.setObjectName("fieldLabel")
+                    lb.setAlignment(Qt.AlignCenter)
+                    h_l.addWidget(lb, 0, col)
+                self._fab_rows_layout.addWidget(hdr)
+
+                for item in fabricantes:
+                    rw = QWidget()
+                    rw.setStyleSheet("background: transparent;")
+                    rl = QGridLayout(rw)
+                    rl.setContentsMargins(2, 2, 2, 2)
+                    rl.setSpacing(6)
+
+                    lbl_num = QLabel(str(item.get("numero_fila", "")))
+                    lbl_num.setObjectName("valueLabel")
+                    lbl_num.setAlignment(Qt.AlignCenter)
+
+                    inp_fab = QLineEdit()
+                    inp_fab.setObjectName("panelInput")
+                    inp_fab.setPlaceholderText(str(item.get("fabricante", "")))
+
+                    rl.addWidget(lbl_num, 0, 0)
+                    rl.addWidget(inp_fab, 0, 1)
+                    self._fab_rows_layout.addWidget(rw)
+                    self._fab_inputs.append({"original": item, "fabricante": inp_fab})
+
+                self._fab_rows_layout.addStretch(1)
+
+    def _filter_fabricante_update(self, text: str) -> None:
+        filtered = [f for f in self._update_fabricantes_all
+                    if text.lower() in f.get("fabricante", "").lower()] if text else self._update_fabricantes_all
+        self._build_fabricante_update_rows(filtered)
+
+    def _submit_fabricante_update(self) -> None:
+        changes = []
+        for entry in self._fab_inputs:
+            new_val  = entry["fabricante"].text().strip()
+            orig_val = str(entry["original"].get("fabricante", ""))
+            if new_val and new_val != orig_val:
+                changes.append((f"Fila {entry['original'].get('numero_fila','')}", f"{orig_val} → {new_val}"))
+
+        if not changes:
+            SweetAlertDialog("Sin cambios", "No has modificado ningún fabricante.",
+                confirm_text="Entendido", cancel_text="Cerrar", parent=self).exec()
+            return
+
+        dlg = SweetAlertDialog("Confirmar actualización",
+            "Se actualizarán los siguientes fabricantes:",
+            details=changes, confirm_text="Sí, actualizar",
+            cancel_text="Cancelar", parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        SweetAlertDialog("Actualizado", "Los fabricantes fueron actualizados.",
+            details=changes, confirm_text="Aceptar", cancel_text="Cerrar", parent=self).exec()
+        for entry in self._fab_inputs:
+            entry["fabricante"].clear()
+
+    def _cancel_fabricante_update(self) -> None:
+        dlg = SweetAlertDialog("Cancelar edición",
+            "¿Deseas cancelar los cambios?",
+            confirm_text="Sí, cancelar", cancel_text="Seguir editando", parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            for entry in self._fab_inputs:
+                entry["fabricante"].clear()
+
+    def _reset_fabricante_update(self) -> None:
+        dlg = SweetAlertDialog("Restablecer valores",
+            "¿Restablecer todos los fabricantes a su valor original?",
+            confirm_text="Sí, restablecer", cancel_text="Cancelar", parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            for entry in self._fab_inputs:
+                entry["fabricante"].clear()
+
+    # ── UPDATE Puertos ──────────────────────────────────────────────────────
+
+    def _show_puertos_update(self, puertos: list) -> None:
+        self._clear_body()
+        self._update_puertos_all: list[dict] = puertos
+
+        outer = QVBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(10)
+        lbl_s = QLabel("Filtrar IP:")
+        lbl_s.setObjectName("fieldLabel")
+        self._puertos_search = QLineEdit()
+        self._puertos_search.setObjectName("panelInput")
+        self._puertos_search.setPlaceholderText("Escribe una IP o fragmento...")
+        self._puertos_search.textChanged.connect(self._filter_puertos_update)
+        search_row.addWidget(lbl_s)
+        search_row.addWidget(self._puertos_search, 1)
+
+        sw = QWidget()
+        sw.setStyleSheet("background: transparent;")
+        sw.setLayout(search_row)
+        outer.addWidget(sw)
+
+        self._puertos_scroll = QScrollArea()
+        self._puertos_scroll.setWidgetResizable(True)
+        self._puertos_scroll.setFrameShape(QFrame.NoFrame)
+        self._puertos_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._puertos_container = QWidget()
+        self._puertos_container.setStyleSheet("background: transparent;")
+        self._puertos_rows_layout = QVBoxLayout(self._puertos_container)
+        self._puertos_rows_layout.setSpacing(6)
+        self._puertos_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._puertos_scroll.setWidget(self._puertos_container)
+        outer.addWidget(self._puertos_scroll, 1)
+
+        wrap = QWidget()
+        wrap.setStyleSheet("background: transparent;")
+        wrap.setLayout(outer)
+        self.body_layout.addWidget(wrap, 1)
+
+        btn_row = self._make_update_buttons(
+            self._submit_puertos_update,
+            self._cancel_puertos_update,
+            self._reset_puertos_update,
+        )
+        self.body_layout.addLayout(btn_row)
+        self._build_puertos_update_rows(puertos)
+
+    def _build_puertos_update_rows(self, puertos: list) -> None:
+        while self._puertos_rows_layout.count():
+            item = self._puertos_rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        self._puertos_inputs: list[dict] = []
+
+        grid_widget = QWidget()
+        grid_widget.setStyleSheet("background: transparent;")
+        grid = QGridLayout(grid_widget)
+        grid.setContentsMargins(4, 0, 4, 0)
+        grid.setSpacing(6)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnMinimumWidth(0, 80)
+
+        # Header
+        lbl_h0 = QLabel("Nº Puerto")
+        lbl_h0.setObjectName("fieldLabel")
+        lbl_h0.setAlignment(Qt.AlignCenter)
+        lbl_h1 = QLabel("IP asignada")
+        lbl_h1.setObjectName("fieldLabel")
+        lbl_h1.setAlignment(Qt.AlignCenter)
+        grid.addWidget(lbl_h0, 0, 0)
+        grid.addWidget(lbl_h1, 0, 1)
+
+        # Filas de datos
+        for row_idx, item in enumerate(puertos, start=1):
+            lbl_num = QLabel(str(item.get("numero_puerto", "")))
+            lbl_num.setObjectName("valueLabel")
+            lbl_num.setAlignment(Qt.AlignCenter)
+
+            inp_ip = QLineEdit()
+            inp_ip.setObjectName("panelInput")
+            inp_ip.setPlaceholderText(str(item.get("ip_asignada", "")))
+
+            grid.addWidget(lbl_num, row_idx, 0)
+            grid.addWidget(inp_ip,  row_idx, 1)
+            self._puertos_inputs.append({"original": item, "ip_asignada": inp_ip})
+
+            self._puertos_rows_layout.addWidget(grid_widget)
+            self._puertos_rows_layout.addStretch(1)
+
+            while self._puertos_rows_layout.count():
+                item = self._puertos_rows_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+
+            self._puertos_inputs: list[dict] = []
+
+            hdr = QWidget()
+            hdr.setStyleSheet("background: transparent;")
+            h_l = QGridLayout(hdr)
+            h_l.setContentsMargins(4, 0, 4, 0)
+            for col, text in enumerate(["Nº Puerto", "IP asignada"]):
+                lb = QLabel(text)
+                lb.setObjectName("fieldLabel")
+                lb.setAlignment(Qt.AlignCenter)
+                h_l.addWidget(lb, 0, col)
+            self._puertos_rows_layout.addWidget(hdr)
+
+            for item in puertos:
+                rw = QWidget()
+                rw.setStyleSheet("background: transparent;")
+                rl = QGridLayout(rw)
+                rl.setContentsMargins(2, 2, 2, 2)
+                rl.setSpacing(6)
+
+                lbl_num = QLabel(str(item.get("numero_puerto", "")))
+                lbl_num.setObjectName("valueLabel")
+                lbl_num.setAlignment(Qt.AlignCenter)
+
+                inp_ip = QLineEdit()
+                inp_ip.setObjectName("panelInput")
+                inp_ip.setPlaceholderText(str(item.get("ip_asignada", "")))
+
+                rl.addWidget(lbl_num, 0, 0)
+                rl.addWidget(inp_ip,  0, 1)
+                self._puertos_rows_layout.addWidget(rw)
+                self._puertos_inputs.append({"original": item, "ip_asignada": inp_ip})
+
+            self._puertos_rows_layout.addStretch(1)
+
+    def _filter_puertos_update(self, text: str) -> None:
+        filtered = [p for p in self._update_puertos_all
+                    if text.lower() in p.get("ip_asignada", "").lower()] if text else self._update_puertos_all
+        self._build_puertos_update_rows(filtered)
+
+    def _submit_puertos_update(self) -> None:
+        changes = []
+        for entry in self._puertos_inputs:
+            new_val  = entry["ip_asignada"].text().strip()
+            orig_val = str(entry["original"].get("ip_asignada", ""))
+            if new_val and new_val != orig_val:
+                changes.append((f"Puerto {entry['original'].get('numero_puerto','')}", f"{orig_val} → {new_val}"))
+
+        if not changes:
+            SweetAlertDialog("Sin cambios", "No has modificado ningún puerto.",
+                confirm_text="Entendido", cancel_text="Cerrar", parent=self).exec()
+            return
+
+        dlg = SweetAlertDialog("Confirmar actualización",
+            "Se actualizarán los siguientes puertos:",
+            details=changes, confirm_text="Sí, actualizar",
+            cancel_text="Cancelar", parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        SweetAlertDialog("Actualizado", "Los puertos fueron actualizados correctamente.",
+            details=changes, confirm_text="Aceptar", cancel_text="Cerrar", parent=self).exec()
+        for entry in self._puertos_inputs:
+            entry["ip_asignada"].clear()
+
+    def _cancel_puertos_update(self) -> None:
+        dlg = SweetAlertDialog("Cancelar edición",
+            "¿Deseas cancelar los cambios?",
+            confirm_text="Sí, cancelar", cancel_text="Seguir editando", parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            for entry in self._puertos_inputs:
+                entry["ip_asignada"].clear()
+
+    def _reset_puertos_update(self) -> None:
+        dlg = SweetAlertDialog("Restablecer valores",
+            "¿Restablecer todas las IPs a su valor original?",
+            confirm_text="Sí, restablecer", cancel_text="Cancelar", parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            for entry in self._puertos_inputs:
+                entry["ip_asignada"].clear()
     def set_mode(self, mode: str | None, data: dict) -> None:
         self.current_mode = mode
 
@@ -781,19 +1469,24 @@ class CrudPanel(QFrame):
                     for item in data.get("resultados_base_datos", [])
                 ]
                 self._show_table(
-                    [
-                        "ID",
-                        "ID Modelos",
-                        "ID Settings",
-                        "ID Puertos",
-                        "ID Pruebas",
-                        "TimeStamp",
-                        "SN",
-                        "MAC",
-                    ],
+                    ["ID", "ID Modelos", "ID Settings", "ID Puertos",
+                     "ID Pruebas", "TimeStamp", "SN", "MAC"],
                     rows,
                     [True, True, False, False, False, False, True, False],
                 )
+            return
+
+        if mode == "U":
+            if self.panel_title_text == "Parámetros":
+                self._show_parametros_update(data.get("parametros", {}))
+            elif self.panel_title_text == "Modelos":
+                self._show_modelos_update(data.get("modelos", []))
+            elif self.panel_title_text == "Fabricante":
+                self._show_fabricante_update(data.get("fabricantes", []))
+            elif self.panel_title_text == "Puertos":
+                self._show_puertos_update(data.get("puertos", []))
+            elif self.panel_title_text == "Resultados de la base de datos":
+                self._show_message("Resultados de la base de datos no está habilitado para Update")
             return
 
         self._show_message(f"Modo {mode} disponible próximamente")
@@ -821,37 +1514,31 @@ class CrudPanel(QFrame):
                 border: 1px solid {theme.border};
                 border-radius: 12px;
             }}
-
             QFrame#panelBody {{
                 background-color: rgba(255, 255, 255, 0.08);
                 border: none;
                 border-radius: 10px;
             }}
-
             QLabel#panelTitle {{
                 color: {theme.title};
                 background: transparent;
                 font-weight: 800;
             }}
-
             QLabel#panelMessage {{
                 color: {theme.text};
                 background: transparent;
                 font-weight: 700;
             }}
-
             QLabel#fieldLabel {{
                 color: {theme.text};
                 background: transparent;
                 font-weight: 700;
             }}
-
             QLabel#valueLabel {{
                 color: {theme.text};
                 background: transparent;
                 font-weight: 700;
             }}
-
             QLineEdit#panelInput {{
                 background-color: {theme.input_bg};
                 color: {theme.input_text};
@@ -860,11 +1547,9 @@ class CrudPanel(QFrame):
                 padding: 8px 10px;
                 font-size: 14px;
             }}
-
             QLineEdit#panelInput:focus {{
                 border: 2px solid {theme.primary};
             }}
-
             QTableWidget {{
                 background-color: rgba(255, 255, 255, 0.04);
                 color: {theme.text};
@@ -875,12 +1560,10 @@ class CrudPanel(QFrame):
                 alternate-background-color: rgba(255, 255, 255, 0.05);
                 padding: 4px;
             }}
-
             QTableWidget::item {{
                 background: transparent;
                 padding: 6px 8px;
             }}
-
             QHeaderView::section {{
                 background-color: {theme.section_alt_bg};
                 color: {theme.title};
@@ -956,7 +1639,7 @@ class ModificarView(QWidget):
             "modelos": [
                 {"nombre": "HG6145F1", "version_software": "V1R001C10S101", "fabricante": "FIBERHOME"},
                 {"nombre": "HG8145V5", "version_software": "V5R021C00S123", "fabricante": "HUAWEI"},
-                {"nombre": "F670L", "version_software": "V6.0.10P3N12", "fabricante": "ZTE"},
+                {"nombre": "F670L",    "version_software": "V6.0.10P3N12",  "fabricante": "ZTE"},
             ],
             "fabricantes": [
                 {"numero_fila": 1, "fabricante": "FIBERHOME"},
@@ -971,24 +1654,16 @@ class ModificarView(QWidget):
             ],
             "resultados_base_datos": [
                 {
-                    "id": 1,
-                    "id_modelos": 1,
-                    "id_settings": 1,
-                    "id_puertos": 1,
-                    "id_pruebas": 1,
+                    "id": 1, "id_modelos": 1, "id_settings": 1,
+                    "id_puertos": 1, "id_pruebas": 1,
                     "timestamp": "2026-03-21 09:00:00",
-                    "sn": "SN000001",
-                    "mac": "AA:BB:CC:DD:EE:01",
+                    "sn": "SN000001", "mac": "AA:BB:CC:DD:EE:01",
                 },
                 {
-                    "id": 2,
-                    "id_modelos": 2,
-                    "id_settings": 1,
-                    "id_puertos": 2,
-                    "id_pruebas": 2,
+                    "id": 2, "id_modelos": 2, "id_settings": 1,
+                    "id_puertos": 2, "id_pruebas": 2,
                     "timestamp": "2026-03-21 09:02:00",
-                    "sn": "SN000002",
-                    "mac": "AA:BB:CC:DD:EE:02",
+                    "sn": "SN000002", "mac": "AA:BB:CC:DD:EE:02",
                 },
             ],
         }
@@ -1078,7 +1753,7 @@ class ModificarView(QWidget):
         self.panels_grid.setAlignment(Qt.AlignTop)
 
         panel_titles = ["Parámetros", "Modelos", "Fabricante", "Puertos"]
-        positions = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        positions    = [(0, 0), (0, 1), (1, 0), (1, 1)]
 
         for title, (row, col) in zip(panel_titles, positions):
             panel = CrudPanel(title)
@@ -1126,14 +1801,13 @@ class ModificarView(QWidget):
         non_empty = [(k, v) for k, v in values.items() if v]
 
         if not non_empty:
-            dialog = SweetAlertDialog(
+            SweetAlertDialog(
                 title="Campo vacío",
                 message=f"Debes capturar la información para {panel_name}.",
                 confirm_text="Entendido",
                 cancel_text="Cerrar",
                 parent=self,
-            )
-            dialog.exec()
+            ).exec()
             return
 
         summary = [("Panel", panel_name)] + non_empty
@@ -1150,15 +1824,14 @@ class ModificarView(QWidget):
         if dialog_confirm.exec() != QDialog.Accepted:
             return
 
-        dialog_ok = SweetAlertDialog(
+        SweetAlertDialog(
             title="Creado correctamente",
             message="Gracias. Los registros fueron creados correctamente.",
             details=summary,
             confirm_text="Aceptar",
             cancel_text="Cerrar",
             parent=self,
-        )
-        dialog_ok.exec()
+        ).exec()
 
         for panel in self.panels:
             panel.clear_inputs()
@@ -1170,28 +1843,23 @@ class ModificarView(QWidget):
             QWidget {{
                 background-color: {theme.app_bg};
             }}
-
             QScrollArea {{
                 background-color: transparent;
                 border: none;
             }}
-
             QScrollArea > QWidget > QWidget {{
                 background-color: transparent;
             }}
-
             QFrame#mainCard {{
                 background-color: {theme.main_card_bg};
                 border: 1px solid {theme.border};
                 border-radius: 24px;
             }}
-
             QFrame#topSectionPanel {{
                 background-color: {theme.section_bg};
                 border: 1px solid {theme.border};
                 border-radius: 14px;
             }}
-
             QLabel#pageTitle {{
                 color: {theme.title};
                 font-weight: 800;
@@ -1215,20 +1883,20 @@ class ModificarView(QWidget):
         w = max(self.width(), 980)
         h = max(self.height(), 700)
 
-        title_size = min(max(int(w / 34), 24), 38)
-        back_w = min(max(int(w / 8), 130), 170)
-        back_h = min(max(int(h / 16), 42), 50)
+        title_size  = min(max(int(w / 34),  24), 38)
+        back_w      = min(max(int(w / 8),  130), 170)
+        back_h      = min(max(int(h / 16),  42),  50)
 
         theme_title_size = min(max(int(w / 74), 15), 21)
 
-        crud_size = min(max(int(w / 12), 78), 98)
-        crud_font = min(max(int(w / 70), 16), 22)
+        crud_size = min(max(int(w / 12),  78),  98)
+        crud_font = min(max(int(w / 70),  16),  22)
 
-        panel_title_size = min(max(int(w / 72), 15), 21)
-        panel_msg_size = min(max(int(w / 110), 10), 15)
-        field_label_size = min(max(int(w / 110), 10), 15)
-        input_size = min(max(int(w / 118), 10), 15)
-        input_height = min(max(int(h / 18), 38), 46)
+        panel_title_size  = min(max(int(w / 72),  15), 21)
+        panel_msg_size    = min(max(int(w / 110), 10), 15)
+        field_label_size  = min(max(int(w / 110), 10), 15)
+        input_size        = min(max(int(w / 118), 10), 15)
+        input_height      = min(max(int(h / 18),  38), 46)
 
         title_font = self.page_title.font()
         title_font.setPointSize(title_size)
@@ -1247,7 +1915,7 @@ class ModificarView(QWidget):
             font.setWeight(QFont.Bold)
             btn.setFont(font)
 
-        panel_min_h = min(max(int(h / 3.2), 240), 330)
+        panel_min_h         = min(max(int(h / 3.2), 240), 330)
         results_panel_min_h = min(max(int(h / 2.5), 280), 380)
 
         for panel in self.panels:
