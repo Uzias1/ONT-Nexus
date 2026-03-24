@@ -113,6 +113,125 @@ class SweetAlertDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(520)
         self.setWindowTitle(title)
+        details = details or []
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 20, 20, 20)
+        card = QFrame()
+        card.setObjectName("sweetCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(22, 20, 22, 20)
+        card_layout.setSpacing(14)
+        lbl_title = QLabel(title)
+        lbl_title.setObjectName("sweetTitle")
+        lbl_title.setAlignment(Qt.AlignCenter)
+        lbl_title.setWordWrap(True)
+        lbl_message = QLabel(message)
+        lbl_message.setObjectName("sweetMessage")
+        lbl_message.setAlignment(Qt.AlignCenter)
+        lbl_message.setWordWrap(True)
+        card_layout.addWidget(lbl_title)
+        card_layout.addWidget(lbl_message)
+        if details:
+            details_box = QFrame()
+            details_box.setObjectName("detailsBox")
+            details_layout = QVBoxLayout(details_box)
+            details_layout.setContentsMargins(14, 14, 14, 14)
+            details_layout.setSpacing(8)
+            for label, value in details:
+                item = QLabel(f"<b>{label}:</b> {value if value else '—'}")
+                item.setWordWrap(True)
+                details_layout.addWidget(item)
+            card_layout.addWidget(details_box)
+        buttons_row = QHBoxLayout()
+        buttons_row.setSpacing(16)
+        buttons_row.setAlignment(Qt.AlignCenter)
+        self.btn_ok = QPushButton(confirm_text)
+        self.btn_ok.setObjectName("sweetOkButton")
+        self.btn_cancel = QPushButton(cancel_text)
+        self.btn_cancel.setObjectName("sweetCancelButton")
+        self.btn_ok.clicked.connect(self.accept)
+        self.btn_cancel.clicked.connect(self.reject)
+        buttons_row.addWidget(self.btn_ok)
+        buttons_row.addWidget(self.btn_cancel)
+        card_layout.addLayout(buttons_row)
+        root.addWidget(card)
+        self._apply_styles()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._apply_titlebar_theme()
+
+    def _apply_titlebar_theme(self) -> None:
+        try:
+            import sys
+            import ctypes
+            if sys.platform != "win32":
+                return
+            hwnd = int(self.winId())
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            value = ctypes.c_int(1 if ThemeManager.is_dark() else 0)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(value),
+                ctypes.sizeof(value),
+            )
+        except Exception:
+            pass
+
+    def _apply_styles(self) -> None:
+        theme = ThemeManager.get_theme()
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {theme.app_bg};
+            }}
+            QFrame#sweetCard {{
+                background-color: {theme.main_card_bg};
+                border: 1px solid {theme.border};
+                border-radius: 16px;
+            }}
+            QLabel#sweetTitle {{
+                color: {theme.title}; font-size: 20px; font-weight: 800; background: transparent;
+            }}
+            QLabel#sweetMessage {{
+                color: {theme.text}; font-size: 14px; background: transparent;
+            }}
+            QFrame#detailsBox {{
+                background-color: {theme.section_bg};
+                border: 1px solid {theme.border}; border-radius: 12px;
+            }}
+            QFrame#detailsBox QLabel {{
+                color: {theme.text}; background: transparent; font-size: 13px;
+            }}
+            QPushButton#sweetOkButton {{
+                min-width: 130px; min-height: 42px; border-radius: 12px;
+                font-size: 14px; font-weight: 700; padding: 8px 14px;
+                background-color: #7BBE3C; color: white; border: 1px solid #4D7F1F;
+            }}
+            QPushButton#sweetOkButton:hover  {{ background-color: #6FAE34; }}
+            QPushButton#sweetOkButton:pressed {{ background-color: #629C2E; }}
+            QPushButton#sweetCancelButton {{
+                min-width: 130px; min-height: 42px; border-radius: 12px;
+                font-size: 14px; font-weight: 700; padding: 8px 14px;
+                background-color: #E95A52; color: white; border: 1px solid #A73732;
+            }}
+            QPushButton#sweetCancelButton:hover  {{ background-color: #D94B44; }}
+            QPushButton#sweetCancelButton:pressed {{ background-color: #C93C36; }}
+        """)
+
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        details: list[tuple[str, str]] | None = None,
+        confirm_text: str = "Confirmar",
+        cancel_text: str = "Cancelar",
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self.setModal(True)
+        self.setMinimumWidth(520)
+        self.setWindowTitle(title)
 
         details = details or []
 
@@ -548,6 +667,29 @@ class CrudPanel(QFrame):
         self.apply_theme()
 
     def _clear_body(self) -> None:
+        while self.body_layout.count():
+            item = self.body_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.setParent(None)
+                widget.deleteLater()
+            elif item.layout() is not None:
+                self._clear_layout(item.layout())
+        self.current_widget = None
+        self.form = None
+
+    def _clear_layout(self, layout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.setParent(None)
+                widget.deleteLater()
+            elif item.layout() is not None:
+                self._clear_layout(item.layout())
+
         while self.body_layout.count():
             item = self.body_layout.takeAt(0)
             widget = item.widget()
@@ -1038,7 +1180,6 @@ class CrudPanel(QFrame):
         grid.setColumnStretch(1, 1)
         grid.setColumnMinimumWidth(0, 60)
 
-        # Header
         lbl_h0 = QLabel("Nº fila")
         lbl_h0.setObjectName("fieldLabel")
         lbl_h0.setAlignment(Qt.AlignCenter)
@@ -1048,7 +1189,6 @@ class CrudPanel(QFrame):
         grid.addWidget(lbl_h0, 0, 0)
         grid.addWidget(lbl_h1, 0, 1)
 
-        # Filas de datos
         for row_idx, item in enumerate(fabricantes, start=1):
             lbl_num = QLabel(str(item.get("numero_fila", "")))
             lbl_num.setObjectName("valueLabel")
@@ -1062,100 +1202,8 @@ class CrudPanel(QFrame):
             grid.addWidget(inp_fab, row_idx, 1)
             self._fab_inputs.append({"original": item, "fabricante": inp_fab})
 
-            self._fab_rows_layout.addWidget(grid_widget)
-            self._fab_rows_layout.addStretch(1)
-
-            while self._fab_rows_layout.count():
-                item = self._fab_rows_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-
-            self._fab_inputs: list[dict] = []
-
-            # Header
-            hdr = QWidget()
-            hdr.setStyleSheet("background: transparent;")
-            h_l = QGridLayout(hdr)
-            h_l.setContentsMargins(4, 0, 4, 0)
-            h_l.setSpacing(6)
-            lbl_h0 = QLabel("Nº fila")
-            lbl_h0.setObjectName("fieldLabel")
-            lbl_h0.setAlignment(Qt.AlignCenter)
-            lbl_h0.setFixedWidth(48)
-            lbl_h1 = QLabel("Fabricante")
-            lbl_h1.setObjectName("fieldLabel")
-            lbl_h1.setAlignment(Qt.AlignCenter)
-            h_l.addWidget(lbl_h0, 0, 0)
-            h_l.addWidget(lbl_h1, 0, 1)
-            h_l.setColumnStretch(0, 0)
-            h_l.setColumnStretch(1, 1)
-            self._fab_rows_layout.addWidget(hdr)
-
-            # Filas de datos
-            for item in fabricantes:
-                rw = QWidget()
-                rw.setStyleSheet("background: transparent;")
-                rl = QGridLayout(rw)
-                rl.setContentsMargins(2, 2, 2, 2)
-                rl.setSpacing(6)
-
-                lbl_num = QLabel(str(item.get("numero_fila", "")))
-                lbl_num.setObjectName("valueLabel")
-                lbl_num.setAlignment(Qt.AlignCenter)
-                lbl_num.setFixedWidth(48)
-
-                inp_fab = QLineEdit()
-                inp_fab.setObjectName("panelInput")
-                inp_fab.setPlaceholderText(str(item.get("fabricante", "")))
-
-                rl.addWidget(lbl_num, 0, 0)
-                rl.addWidget(inp_fab, 0, 1)
-                rl.setColumnStretch(0, 0)
-                rl.setColumnStretch(1, 1)
-                self._fab_rows_layout.addWidget(rw)
-                self._fab_inputs.append({"original": item, "fabricante": inp_fab})
-
-                self._fab_rows_layout.addStretch(1)
-
-                while self._fab_rows_layout.count():
-                    item = self._fab_rows_layout.takeAt(0)
-                    if item.widget():
-                        item.widget().deleteLater()
-
-                self._fab_inputs: list[dict] = []
-
-                hdr = QWidget()
-                hdr.setStyleSheet("background: transparent;")
-                h_l = QGridLayout(hdr)
-                h_l.setContentsMargins(4, 0, 4, 0)
-                for col, text in enumerate(["Nº fila", "Fabricante"]):
-                    lb = QLabel(text)
-                    lb.setObjectName("fieldLabel")
-                    lb.setAlignment(Qt.AlignCenter)
-                    h_l.addWidget(lb, 0, col)
-                self._fab_rows_layout.addWidget(hdr)
-
-                for item in fabricantes:
-                    rw = QWidget()
-                    rw.setStyleSheet("background: transparent;")
-                    rl = QGridLayout(rw)
-                    rl.setContentsMargins(2, 2, 2, 2)
-                    rl.setSpacing(6)
-
-                    lbl_num = QLabel(str(item.get("numero_fila", "")))
-                    lbl_num.setObjectName("valueLabel")
-                    lbl_num.setAlignment(Qt.AlignCenter)
-
-                    inp_fab = QLineEdit()
-                    inp_fab.setObjectName("panelInput")
-                    inp_fab.setPlaceholderText(str(item.get("fabricante", "")))
-
-                    rl.addWidget(lbl_num, 0, 0)
-                    rl.addWidget(inp_fab, 0, 1)
-                    self._fab_rows_layout.addWidget(rw)
-                    self._fab_inputs.append({"original": item, "fabricante": inp_fab})
-
-                self._fab_rows_layout.addStretch(1)
+        self._fab_rows_layout.addWidget(grid_widget)
+        self._fab_rows_layout.addStretch(1)
 
     def _filter_fabricante_update(self, text: str) -> None:
         filtered = [f for f in self._update_fabricantes_all
@@ -1271,7 +1319,6 @@ class CrudPanel(QFrame):
         grid.setColumnStretch(1, 1)
         grid.setColumnMinimumWidth(0, 80)
 
-        # Header
         lbl_h0 = QLabel("Nº Puerto")
         lbl_h0.setObjectName("fieldLabel")
         lbl_h0.setAlignment(Qt.AlignCenter)
@@ -1281,7 +1328,6 @@ class CrudPanel(QFrame):
         grid.addWidget(lbl_h0, 0, 0)
         grid.addWidget(lbl_h1, 0, 1)
 
-        # Filas de datos
         for row_idx, item in enumerate(puertos, start=1):
             lbl_num = QLabel(str(item.get("numero_puerto", "")))
             lbl_num.setObjectName("valueLabel")
@@ -1295,48 +1341,9 @@ class CrudPanel(QFrame):
             grid.addWidget(inp_ip,  row_idx, 1)
             self._puertos_inputs.append({"original": item, "ip_asignada": inp_ip})
 
-            self._puertos_rows_layout.addWidget(grid_widget)
-            self._puertos_rows_layout.addStretch(1)
+        self._puertos_rows_layout.addWidget(grid_widget)
+        self._puertos_rows_layout.addStretch(1)
 
-            while self._puertos_rows_layout.count():
-                item = self._puertos_rows_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-
-            self._puertos_inputs: list[dict] = []
-
-            hdr = QWidget()
-            hdr.setStyleSheet("background: transparent;")
-            h_l = QGridLayout(hdr)
-            h_l.setContentsMargins(4, 0, 4, 0)
-            for col, text in enumerate(["Nº Puerto", "IP asignada"]):
-                lb = QLabel(text)
-                lb.setObjectName("fieldLabel")
-                lb.setAlignment(Qt.AlignCenter)
-                h_l.addWidget(lb, 0, col)
-            self._puertos_rows_layout.addWidget(hdr)
-
-            for item in puertos:
-                rw = QWidget()
-                rw.setStyleSheet("background: transparent;")
-                rl = QGridLayout(rw)
-                rl.setContentsMargins(2, 2, 2, 2)
-                rl.setSpacing(6)
-
-                lbl_num = QLabel(str(item.get("numero_puerto", "")))
-                lbl_num.setObjectName("valueLabel")
-                lbl_num.setAlignment(Qt.AlignCenter)
-
-                inp_ip = QLineEdit()
-                inp_ip.setObjectName("panelInput")
-                inp_ip.setPlaceholderText(str(item.get("ip_asignada", "")))
-
-                rl.addWidget(lbl_num, 0, 0)
-                rl.addWidget(inp_ip,  0, 1)
-                self._puertos_rows_layout.addWidget(rw)
-                self._puertos_inputs.append({"original": item, "ip_asignada": inp_ip})
-
-            self._puertos_rows_layout.addStretch(1)
 
     def _filter_puertos_update(self, text: str) -> None:
         filtered = [p for p in self._update_puertos_all
@@ -1609,6 +1616,473 @@ class CrudPanel(QFrame):
                 row.input.setFont(inp_font)
                 row.input.setFixedHeight(input_height)
 
+        # ── DELETE Modelos ──────────────────────────────────────────────────────
+
+    def _show_modelos_delete(self, modelos: list) -> None:
+        self._clear_body()
+        self._delete_modelos_all: list[dict] = modelos
+        outer = QVBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(10)
+        lbl_s = QLabel("Filtrar nombre:")
+        lbl_s.setObjectName("fieldLabel")
+        self._modelos_delete_search = QLineEdit()
+        self._modelos_delete_search.setObjectName("panelInput")
+        self._modelos_delete_search.setPlaceholderText("Escribe un nombre o fragmento...")
+        self._modelos_delete_search.textChanged.connect(self._filter_modelos_delete)
+        search_row.addWidget(lbl_s)
+        search_row.addWidget(self._modelos_delete_search, 1)
+        sw = QWidget()
+        sw.setStyleSheet("background: transparent;")
+        sw.setLayout(search_row)
+        outer.addWidget(sw)
+
+        self._modelos_delete_scroll = QScrollArea()
+        self._modelos_delete_scroll.setWidgetResizable(True)
+        self._modelos_delete_scroll.setFrameShape(QFrame.NoFrame)
+        self._modelos_delete_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._modelos_delete_container = QWidget()
+        self._modelos_delete_container.setStyleSheet("background: transparent;")
+        self._modelos_delete_rows_layout = QVBoxLayout(self._modelos_delete_container)
+        self._modelos_delete_rows_layout.setSpacing(6)
+        self._modelos_delete_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._modelos_delete_scroll.setWidget(self._modelos_delete_container)
+        outer.addWidget(self._modelos_delete_scroll, 1)
+
+        wrap = QWidget()
+        wrap.setStyleSheet("background: transparent;")
+        wrap.setLayout(outer)
+        self.body_layout.addWidget(wrap, 1)
+        self._build_modelos_delete_rows(modelos)
+
+    def _build_modelos_delete_rows(self, modelos: list) -> None:
+        while self._modelos_delete_rows_layout.count():
+            item = self._modelos_delete_rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Header
+        grid_widget = QWidget()
+        grid_widget.setStyleSheet("background: transparent;")
+        grid = QGridLayout(grid_widget)
+        grid.setContentsMargins(4, 0, 4, 0)
+        grid.setSpacing(6)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 1)
+        grid.setColumnStretch(3, 0)
+
+        for col, text in enumerate(["Nombre", "Versión de software", "Fabricante", ""]):
+            lbl = QLabel(text)
+            lbl.setObjectName("fieldLabel")
+            lbl.setAlignment(Qt.AlignCenter)
+            grid.addWidget(lbl, 0, col)
+
+        for row_idx, item in enumerate(modelos, start=1):
+            lbl_nombre  = QLabel(str(item.get("nombre", "")))
+            lbl_nombre.setObjectName("valueLabel")
+            lbl_nombre.setAlignment(Qt.AlignCenter)
+
+            lbl_version = QLabel(str(item.get("version_software", "")))
+            lbl_version.setObjectName("valueLabel")
+            lbl_version.setAlignment(Qt.AlignCenter)
+
+            lbl_fab = QLabel(str(item.get("fabricante", "")))
+            lbl_fab.setObjectName("valueLabel")
+            lbl_fab.setAlignment(Qt.AlignCenter)
+
+            btn_del = MiniActionButton("✕", "#E95A52", "#D94B44", "#C93C36", "#A73732")
+            btn_del.setFixedSize(36, 30)
+            btn_del.clicked.connect(lambda checked=False, i=item: self._confirm_modelo_delete(i))
+
+            grid.addWidget(lbl_nombre,  row_idx, 0)
+            grid.addWidget(lbl_version, row_idx, 1)
+            grid.addWidget(lbl_fab,     row_idx, 2)
+            grid.addWidget(btn_del,     row_idx, 3, alignment=Qt.AlignCenter)
+
+        self._modelos_delete_rows_layout.addWidget(grid_widget)
+        self._modelos_delete_rows_layout.addStretch(1)
+
+    def _filter_modelos_delete(self, text: str) -> None:
+        filtered = [m for m in self._delete_modelos_all
+                    if text.lower() in m.get("nombre", "").lower()] if text else self._delete_modelos_all
+        self._build_modelos_delete_rows(filtered)
+
+    def _confirm_modelo_delete(self, item: dict) -> None:
+        details = [
+            ("Nombre",              str(item.get("nombre", ""))),
+            ("Versión de software", str(item.get("version_software", ""))),
+            ("Fabricante",          str(item.get("fabricante", ""))),
+        ]
+        dlg = SweetAlertDialog(
+            title="¿Eliminar modelo?",
+            message="Se eliminará el siguiente modelo permanentemente:",
+            details=details,
+            confirm_text="Sí, eliminar",
+            cancel_text="Cancelar",
+            parent=self,
+        )
+        if dlg.exec() != QDialog.Accepted:
+            return
+        dlg2 = SweetAlertDialog(
+            title="Confirmar eliminación",
+            message="¿Estás completamente seguro? Esta acción no se puede deshacer.",
+            details=details,
+            confirm_text="Eliminar definitivamente",
+            cancel_text="Cancelar",
+            parent=self,
+        )
+        if dlg2.exec() == QDialog.Accepted:
+            SweetAlertDialog(
+                title="Eliminado",
+                message="El modelo fue eliminado correctamente.",
+                details=details,
+                confirm_text="Aceptar",
+                cancel_text="Cerrar",
+                parent=self,
+            ).exec()
+    # ── DELETE Fabricante ───────────────────────────────────────────────────
+
+    def _show_fabricante_delete(self, fabricantes: list) -> None:
+        self._clear_body()
+        self._delete_fabricantes_all: list[dict] = fabricantes
+        outer = QVBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(10)
+        lbl_s = QLabel("Filtrar fabricante:")
+        lbl_s.setObjectName("fieldLabel")
+        self._fab_delete_search = QLineEdit()
+        self._fab_delete_search.setObjectName("panelInput")
+        self._fab_delete_search.setPlaceholderText("Escribe un fabricante o fragmento...")
+        self._fab_delete_search.textChanged.connect(self._filter_fabricante_delete)
+        search_row.addWidget(lbl_s)
+        search_row.addWidget(self._fab_delete_search, 1)
+        sw = QWidget()
+        sw.setStyleSheet("background: transparent;")
+        sw.setLayout(search_row)
+        outer.addWidget(sw)
+
+        self._fab_delete_scroll = QScrollArea()
+        self._fab_delete_scroll.setWidgetResizable(True)
+        self._fab_delete_scroll.setFrameShape(QFrame.NoFrame)
+        self._fab_delete_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._fab_delete_container = QWidget()
+        self._fab_delete_container.setStyleSheet("background: transparent;")
+        self._fab_delete_rows_layout = QVBoxLayout(self._fab_delete_container)
+        self._fab_delete_rows_layout.setSpacing(6)
+        self._fab_delete_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._fab_delete_scroll.setWidget(self._fab_delete_container)
+        outer.addWidget(self._fab_delete_scroll, 1)
+
+        wrap = QWidget()
+        wrap.setStyleSheet("background: transparent;")
+        wrap.setLayout(outer)
+        self.body_layout.addWidget(wrap, 1)
+        self._build_fabricante_delete_rows(fabricantes)
+
+    def _build_fabricante_delete_rows(self, fabricantes: list) -> None:
+        while self._fab_delete_rows_layout.count():
+            item = self._fab_delete_rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        grid_widget = QWidget()
+        grid_widget.setStyleSheet("background: transparent;")
+        grid = QGridLayout(grid_widget)
+        grid.setContentsMargins(4, 0, 4, 0)
+        grid.setSpacing(6)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnMinimumWidth(0, 60)
+
+        for col, text in enumerate(["Nº fila", "Fabricante", ""]):
+            lbl = QLabel(text)
+            lbl.setObjectName("fieldLabel")
+            lbl.setAlignment(Qt.AlignCenter)
+            grid.addWidget(lbl, 0, col)
+
+        for row_idx, item in enumerate(fabricantes, start=1):
+            lbl_num = QLabel(str(item.get("numero_fila", "")))
+            lbl_num.setObjectName("valueLabel")
+            lbl_num.setAlignment(Qt.AlignCenter)
+
+            lbl_fab = QLabel(str(item.get("fabricante", "")))
+            lbl_fab.setObjectName("valueLabel")
+            lbl_fab.setAlignment(Qt.AlignCenter)
+
+            btn_del = MiniActionButton("✕", "#E95A52", "#D94B44", "#C93C36", "#A73732")
+            btn_del.setFixedSize(36, 30)
+            btn_del.clicked.connect(lambda checked=False, i=item: self._confirm_fabricante_delete(i))
+
+            grid.addWidget(lbl_num, row_idx, 0)
+            grid.addWidget(lbl_fab, row_idx, 1)
+            grid.addWidget(btn_del, row_idx, 2, alignment=Qt.AlignCenter)
+
+        self._fab_delete_rows_layout.addWidget(grid_widget)
+        self._fab_delete_rows_layout.addStretch(1)
+
+    def _filter_fabricante_delete(self, text: str) -> None:
+        filtered = [f for f in self._delete_fabricantes_all
+                    if text.lower() in f.get("fabricante", "").lower()] if text else self._delete_fabricantes_all
+        self._build_fabricante_delete_rows(filtered)
+
+    def _confirm_fabricante_delete(self, item: dict) -> None:
+        details = [
+            ("Nº fila",    str(item.get("numero_fila", ""))),
+            ("Fabricante", str(item.get("fabricante", ""))),
+        ]
+        dlg = SweetAlertDialog(
+            title="¿Eliminar fabricante?",
+            message="Se eliminará el siguiente fabricante permanentemente:",
+            details=details,
+            confirm_text="Sí, eliminar",
+            cancel_text="Cancelar",
+            parent=self,
+        )
+        if dlg.exec() != QDialog.Accepted:
+            return
+        dlg2 = SweetAlertDialog(
+            title="Confirmar eliminación",
+            message="¿Estás completamente seguro? Esta acción no se puede deshacer.",
+            details=details,
+            confirm_text="Eliminar definitivamente",
+            cancel_text="Cancelar",
+            parent=self,
+        )
+        if dlg2.exec() == QDialog.Accepted:
+            SweetAlertDialog(
+                title="Eliminado",
+                message="El fabricante fue eliminado correctamente.",
+                details=details,
+                confirm_text="Aceptar",
+                cancel_text="Cerrar",
+                parent=self,
+            ).exec()
+
+    # ── DELETE Puertos ──────────────────────────────────────────────────────
+
+    def _show_puertos_delete(self, puertos: list) -> None:
+        self._clear_body()
+        self._delete_puertos_all: list[dict] = puertos
+        outer = QVBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(10)
+        lbl_s = QLabel("Filtrar IP:")
+        lbl_s.setObjectName("fieldLabel")
+        self._puertos_delete_search = QLineEdit()
+        self._puertos_delete_search.setObjectName("panelInput")
+        self._puertos_delete_search.setPlaceholderText("Escribe una IP o fragmento...")
+        self._puertos_delete_search.textChanged.connect(self._filter_puertos_delete)
+        search_row.addWidget(lbl_s)
+        search_row.addWidget(self._puertos_delete_search, 1)
+        sw = QWidget()
+        sw.setStyleSheet("background: transparent;")
+        sw.setLayout(search_row)
+        outer.addWidget(sw)
+
+        self._puertos_delete_scroll = QScrollArea()
+        self._puertos_delete_scroll.setWidgetResizable(True)
+        self._puertos_delete_scroll.setFrameShape(QFrame.NoFrame)
+        self._puertos_delete_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._puertos_delete_container = QWidget()
+        self._puertos_delete_container.setStyleSheet("background: transparent;")
+        self._puertos_delete_rows_layout = QVBoxLayout(self._puertos_delete_container)
+        self._puertos_delete_rows_layout.setSpacing(6)
+        self._puertos_delete_rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._puertos_delete_scroll.setWidget(self._puertos_delete_container)
+        outer.addWidget(self._puertos_delete_scroll, 1)
+
+        wrap = QWidget()
+        wrap.setStyleSheet("background: transparent;")
+        wrap.setLayout(outer)
+        self.body_layout.addWidget(wrap, 1)
+        self._build_puertos_delete_rows(puertos)
+
+    def _build_puertos_delete_rows(self, puertos: list) -> None:
+        while self._puertos_delete_rows_layout.count():
+            item = self._puertos_delete_rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        grid_widget = QWidget()
+        grid_widget.setStyleSheet("background: transparent;")
+        grid = QGridLayout(grid_widget)
+        grid.setContentsMargins(4, 0, 4, 0)
+        grid.setSpacing(6)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnMinimumWidth(0, 80)
+        
+
+        for col, text in enumerate(["Nº Puerto", "IP asignada", ""]):
+            lbl = QLabel(text)
+            lbl.setObjectName("fieldLabel")
+            lbl.setAlignment(Qt.AlignCenter)
+            grid.addWidget(lbl, 0, col)
+
+        for row_idx, item in enumerate(puertos, start=1):
+            lbl_num = QLabel(str(item.get("numero_puerto", "")))
+            lbl_num.setObjectName("valueLabel")
+            lbl_num.setAlignment(Qt.AlignCenter)
+
+            lbl_ip = QLabel(str(item.get("ip_asignada", "")))
+            lbl_ip.setObjectName("valueLabel")
+            lbl_ip.setAlignment(Qt.AlignCenter)
+
+            btn_del = MiniActionButton("✕", "#E95A52", "#D94B44", "#C93C36", "#A73732")
+            btn_del.setFixedSize(36, 30)
+            btn_del.clicked.connect(lambda checked=False, i=item: self._confirm_puerto_delete(i))
+
+            grid.addWidget(lbl_num, row_idx, 0)
+            grid.addWidget(lbl_ip,  row_idx, 1)
+            grid.addWidget(btn_del, row_idx, 2, alignment=Qt.AlignCenter)
+
+        self._puertos_delete_rows_layout.addWidget(grid_widget)
+        self._puertos_delete_rows_layout.addStretch(1)
+
+    def _filter_puertos_delete(self, text: str) -> None:
+        filtered = [p for p in self._delete_puertos_all
+                    if text.lower() in p.get("ip_asignada", "").lower()] if text else self._delete_puertos_all
+        self._build_puertos_delete_rows(filtered)
+
+    def _confirm_puerto_delete(self, item: dict) -> None:
+        details = [
+            ("Nº Puerto",   str(item.get("numero_puerto", ""))),
+            ("IP asignada", str(item.get("ip_asignada", ""))),
+        ]
+        dlg = SweetAlertDialog(
+            title="¿Eliminar puerto?",
+            message="Se eliminará el siguiente puerto permanentemente:",
+            details=details,
+            confirm_text="Sí, eliminar",
+            cancel_text="Cancelar",
+            parent=self,
+        )
+        if dlg.exec() != QDialog.Accepted:
+            return
+        dlg2 = SweetAlertDialog(
+            title="Confirmar eliminación",
+            message="¿Estás completamente seguro? Esta acción no se puede deshacer.",
+            details=details,
+            confirm_text="Eliminar definitivamente",
+            cancel_text="Cancelar",
+            parent=self,
+        )
+        if dlg2.exec() == QDialog.Accepted:
+            SweetAlertDialog(
+                title="Eliminado",
+                message="El puerto fue eliminado correctamente.",
+                details=details,
+                confirm_text="Aceptar",
+                cancel_text="Cerrar",
+                parent=self,
+            ).exec()
+    def set_mode(self, mode: str | None, data: dict) -> None:
+        self.current_mode = mode
+        if mode is None:
+            self._show_message("Seleccione un modo del CRUD primero")
+            return
+
+        # ── CREATE ──────────────────────────────────────────────────────────
+        if mode == "C":
+            if self.panel_title_text == "Parámetros":
+                self._show_message("Parámetros no está habilitado para Create")
+            elif self.panel_title_text == "Modelos":
+                self._show_form([
+                    ("Nombre", "Ej. HG8145V5"),
+                    ("Versión de software", "Ej. V5R021C00S123"),
+                    ("Fabricante", "Ej. Huawei"),
+                ])
+            elif self.panel_title_text == "Fabricante":
+                self._show_form([("Nuevo fabricante", "Ej. Huawei")])
+            elif self.panel_title_text == "Puertos":
+                self._show_form([
+                    ("Número de puerto", "Ej. 4"),
+                    ("IP asignada", "Ej. 192.168.100.10"),
+                ])
+            elif self.panel_title_text == "Resultados de la base de datos":
+                self._show_message("Resultados de la base de datos no está habilitado para Create")
+            return
+
+        # ── READ ─────────────────────────────────────────────────────────────
+        if mode == "R":
+            if self.panel_title_text == "Parámetros":
+                self._show_parametros_read(data.get("parametros", {}))
+            elif self.panel_title_text == "Modelos":
+                rows = [
+                    [str(item.get("nombre", "")), str(item.get("version_software", "")), str(item.get("fabricante", ""))]
+                    for item in data.get("modelos", [])
+                ]
+                self._show_table(["Nombre", "Versión de software", "Fabricante"], rows, [True, True, True])
+            elif self.panel_title_text == "Fabricante":
+                rows = [
+                    [str(item.get("numero_fila", "")), str(item.get("fabricante", ""))]
+                    for item in data.get("fabricantes", [])
+                ]
+                self._show_simple_table(["Número de fila", "Fabricante"], rows)
+            elif self.panel_title_text == "Puertos":
+                rows = [
+                    [str(item.get("numero_puerto", "")), str(item.get("ip_asignada", ""))]
+                    for item in data.get("puertos", [])
+                ]
+                self._show_table(["Número de puerto", "IP asignada"], rows, [True, True])
+            elif self.panel_title_text == "Resultados de la base de datos":
+                rows = [
+                    [
+                        str(item.get("id", "")),          str(item.get("id_modelos", "")),
+                        str(item.get("id_settings", "")), str(item.get("id_puertos", "")),
+                        str(item.get("id_pruebas", "")),  str(item.get("timestamp", "")),
+                        str(item.get("sn", "")),          str(item.get("mac", "")),
+                    ]
+                    for item in data.get("resultados_base_datos", [])
+                ]
+                self._show_table(
+                    ["ID", "ID Modelos", "ID Settings", "ID Puertos", "ID Pruebas", "TimeStamp", "SN", "MAC"],
+                    rows,
+                    [True, True, False, False, False, False, True, False],
+                )
+            return
+
+        # ── UPDATE ───────────────────────────────────────────────────────────
+        if mode == "U":
+            if self.panel_title_text == "Parámetros":
+                self._show_parametros_update(data.get("parametros", {}))
+            elif self.panel_title_text == "Modelos":
+                self._show_modelos_update(data.get("modelos", []))
+            elif self.panel_title_text == "Fabricante":
+                self._show_fabricante_update(data.get("fabricantes", []))
+            elif self.panel_title_text == "Puertos":
+                self._show_puertos_update(data.get("puertos", []))
+            elif self.panel_title_text == "Resultados de la base de datos":
+                self._show_message("Resultados de la base de datos no está habilitado para Update")
+            return
+
+        # ── DELETE ───────────────────────────────────────────────────────────
+        if mode == "D":
+            if self.panel_title_text == "Parámetros":
+                self._show_message("Parámetros no está habilitado para Delete")
+            elif self.panel_title_text == "Modelos":
+                self._show_modelos_delete(data.get("modelos", []))
+            elif self.panel_title_text == "Fabricante":
+                self._show_fabricante_delete(data.get("fabricantes", []))
+            elif self.panel_title_text == "Puertos":
+                self._show_puertos_delete(data.get("puertos", []))
+            elif self.panel_title_text == "Resultados de la base de datos":
+                self._show_message("Resultados de la base de datos no está habilitado para Delete")
+            return
+
+        self._show_message(f"Modo {mode} disponible próximamente")
 
 class ModificarView(QWidget):
     theme_changed = Signal()
