@@ -58,6 +58,22 @@ class StationEntryConfig:
     port_index: int
     expected_ip: str
 
+@dataclass(slots=True)
+class SeleniumConfig:
+    browser: str
+    headless: bool
+    implicit_wait_s: int
+    page_load_timeout_s: int
+    script_timeout_s: int
+    window_width: int
+    window_height: int
+    chrome_binary_path: str | None
+    chromedriver_path: str | None
+
+@dataclass(slots=True)
+class AutoExecutionConfig:
+    enabled: bool
+    trigger_on_connect: bool
 
 @dataclass(slots=True)
 class Settings:
@@ -67,8 +83,9 @@ class Settings:
     ui: UiConfig
     logging: LoggingConfig
     database: DatabaseConfig
+    selenium: SeleniumConfig
+    auto_execution: AutoExecutionConfig
     station_map: list[StationEntryConfig] = field(default_factory=list)
-
 
 def _read_yaml_file(file_path: Path) -> dict[str, Any]:
     if not file_path.exists():
@@ -126,7 +143,8 @@ def _build_settings(
     ui_section = app_data.get("ui", {})
     logging_section = app_data.get("logging", {})
     database_section = app_data.get("database", {})
-
+    selenium_section = app_data.get("selenium", {})
+    auto_execution_section = app_data.get("auto_execution", {})
     station_map = _build_station_map(station_map_data)
 
     return Settings(
@@ -157,6 +175,21 @@ def _build_settings(
             enabled=bool(database_section.get("enabled", True)),
             path=str(database_section.get("path", "data/runtime/nexus.db")),
             init_on_startup=bool(database_section.get("init_on_startup", True)),
+        ),
+        selenium=SeleniumConfig(
+            browser=str(selenium_section.get("browser", "chrome")),
+            headless=bool(selenium_section.get("headless", False)),
+            implicit_wait_s=int(selenium_section.get("implicit_wait_s", 2)),
+            page_load_timeout_s=int(selenium_section.get("page_load_timeout_s", 20)),
+            script_timeout_s=int(selenium_section.get("script_timeout_s", 20)),
+            window_width=int(selenium_section.get("window_width", 1400)),
+            window_height=int(selenium_section.get("window_height", 900)),
+            chrome_binary_path=str(selenium_section.get("chrome_binary_path", None)),
+            chromedriver_path=str(selenium_section.get("chromedriver_path", None)),
+        ),
+        auto_execution=AutoExecutionConfig(
+            enabled=bool(auto_execution_section.get("enabled", True)),
+            trigger_on_connect=bool(auto_execution_section.get("trigger_on_connect", True)),
         ),
         station_map=station_map,
     )

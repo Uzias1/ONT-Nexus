@@ -4,9 +4,9 @@ app:
   environment: "development"
 
 monitor:
-  heartbeat_interval_s: .5
-  poll_interval_s: .5
-  disconnect_threshold: 1
+  heartbeat_interval_s: 1.0
+  poll_interval_s: 1.0
+  disconnect_threshold: 3
   ping_timeout_ms: 500
 
 workers:
@@ -25,3 +25,18 @@ database:
   enabled: true
   path: "data/runtime/nexus.db"
   init_on_startup: true
+
+selenium:
+  browser: "chrome"
+  headless: true
+  implicit_wait_s: 2
+  page_load_timeout_s: 20
+  script_timeout_s: 20
+  window_width: 1400
+  window_height: 900
+  chrome_binary_path: "tools/browser/chrome-win64/chrome.exe"
+  chromedriver_path: "tools/browser/chromedriver-win64/chromedriver.exe"
+
+auto_execution:
+  enabled: true
+  trigger_on_connect: true

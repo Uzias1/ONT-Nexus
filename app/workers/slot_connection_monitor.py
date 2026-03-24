@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.logging.logger import get_logger, log_both, log_console
+from app.infrastructure.network.arp_scanner import ArpScanner
 from app.infrastructure.network.ping_service import PingService
 
 if TYPE_CHECKING:
@@ -16,9 +17,6 @@ if TYPE_CHECKING:
 class SlotConnectionMonitor:
     """
     Monitor dedicado a un solo slot/worker.
-
-    Cada instancia revisa únicamente la IP esperada de su worker,
-    evitando que el estado de un slot dependa del tiempo de respuesta de los demás.
     """
 
     def __init__(
@@ -27,11 +25,13 @@ class SlotConnectionMonitor:
         settings: Settings,
         supervisor: Supervisor,
         ping_service: PingService,
+        arp_scanner: ArpScanner,
         worker_id: str,
     ) -> None:
         self._settings = settings
         self._supervisor = supervisor
         self._ping_service = ping_service
+        self._arp_scanner = arp_scanner
         self._worker_id = worker_id
         self._logger = get_logger(f"{self.__class__.__name__}.{worker_id}")
 
@@ -44,9 +44,6 @@ class SlotConnectionMonitor:
         self._disconnect_threshold = max(1, settings.monitor.disconnect_threshold)
         self._failure_count = 0
 
-    # ==========================================================
-    # Ciclo de vida
-    # ==========================================================
     def start(self) -> None:
         with self._lock:
             if self._running:
@@ -95,9 +92,6 @@ class SlotConnectionMonitor:
         with self._lock:
             return self._running
 
-    # ==========================================================
-    # Loop principal
-    # ==========================================================
     def _run_loop(self) -> None:
         try:
             log_console(self._logger, logging.INFO, "Loop de monitoreo por slot iniciado.")
@@ -142,31 +136,74 @@ class SlotConnectionMonitor:
                 disconnect_expected=disconnect_expected,
             )
 
-    # ==========================================================
-    # Transiciones
-    # ==========================================================
     def _handle_connected(self, *, expected_ip: str, connected_before: bool) -> None:
         self._failure_count = 0
+
+        detected_mac = self._arp_scanner.get_mac(expected_ip)
 
         self._supervisor.update_worker_network(
             worker_id=self._worker_id,
             device_ip=expected_ip,
-        )
-        self._supervisor.set_worker_connected(
-            worker_id=self._worker_id,
-            connected=True,
-            disconnect_expected=False,
-            connection_reason="ping_ok",
+            mac=detected_mac,
         )
 
-        if not connected_before:
+        if connected_before:
+            self._supervisor.set_worker_connected(
+                worker_id=self._worker_id,
+                connected=True,
+                disconnect_expected=None,
+                connection_reason="ping_ok",
+            )
+        else:
+            self._supervisor.set_worker_connected(
+                worker_id=self._worker_id,
+                connected=True,
+                disconnect_expected=False,
+                connection_reason="reconnected",
+            )
+
             log_console(
                 self._logger,
                 logging.INFO,
-                "Equipo detectado en %s (%s).",
+                "Equipo detectado en %s (%s). MAC=%s",
                 self._worker_id,
                 expected_ip,
+                detected_mac or "-",
             )
+
+            self._supervisor.try_auto_start_execution(self._worker_id)
+
+    def _handle_disconnected(
+        self,
+        *,
+        connected_before: bool,
+        disconnect_expected: bool,
+    ) -> None:
+        self._supervisor.set_worker_connected(
+            worker_id=self._worker_id,
+            connected=False,
+            disconnect_expected=disconnect_expected,
+            connection_reason="expected_disconnect" if disconnect_expected else "lost_ping",
+        )
+
+        if connected_before:
+            if disconnect_expected:
+                log_console(
+                    self._logger,
+                    logging.INFO,
+                    "Desconexión esperada confirmada en %s.",
+                    self._worker_id,
+                )
+            else:
+                log_console(
+                    self._logger,
+                    logging.WARNING,
+                    "Desconexión real confirmada en %s.",
+                    self._worker_id,
+                )
+
+                # Solo en desconexión real reiniciamos el slot a estado base
+                self._supervisor.handle_physical_disconnect(self._worker_id)
 
     def _handle_failed_ping(
         self,
@@ -188,6 +225,11 @@ class SlotConnectionMonitor:
         if self._failure_count < self._disconnect_threshold:
             return
 
+        self._supervisor.update_worker_network(
+            worker_id=self._worker_id,
+            device_ip=None,
+            mac=None,
+        )
         self._supervisor.set_worker_connected(
             worker_id=self._worker_id,
             connected=False,

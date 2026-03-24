@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
-
+from app.shared.constants import TEST_EXECUTION_ORDER
 
 SUPPORTED_TESTS = (
     "factory_reset",
@@ -33,10 +33,11 @@ class ExecutionTestRequest:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def enabled_tests(self) -> list[str]:
-        """
-        Devuelve la lista de pruebas habilitadas.
-        """
-        return [test_name for test_name, enabled in self.tests.items() if enabled]
+        return [
+            test_name
+            for test_name in TEST_EXECUTION_ORDER
+            if self.tests.get(test_name, False)
+        ]
 
     def is_test_enabled(self, test_name: str) -> bool:
         """

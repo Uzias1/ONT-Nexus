@@ -1,2 +1,6 @@
 *.env
 *.log
+*.pyc
+
+# Ignorar el driver
+tools/browser/
