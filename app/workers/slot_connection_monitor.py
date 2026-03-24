@@ -173,6 +173,38 @@ class SlotConnectionMonitor:
 
             self._supervisor.try_auto_start_execution(self._worker_id)
 
+    def _handle_disconnected(
+        self,
+        *,
+        connected_before: bool,
+        disconnect_expected: bool,
+    ) -> None:
+        self._supervisor.set_worker_connected(
+            worker_id=self._worker_id,
+            connected=False,
+            disconnect_expected=disconnect_expected,
+            connection_reason="expected_disconnect" if disconnect_expected else "lost_ping",
+        )
+
+        if connected_before:
+            if disconnect_expected:
+                log_console(
+                    self._logger,
+                    logging.INFO,
+                    "Desconexión esperada confirmada en %s.",
+                    self._worker_id,
+                )
+            else:
+                log_console(
+                    self._logger,
+                    logging.WARNING,
+                    "Desconexión real confirmada en %s.",
+                    self._worker_id,
+                )
+
+                # Solo en desconexión real reiniciamos el slot a estado base
+                self._supervisor.handle_physical_disconnect(self._worker_id)
+
     def _handle_failed_ping(
         self,
         *,

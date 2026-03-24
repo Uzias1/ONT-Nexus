@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from typing import TYPE_CHECKING, Any
 
 from app.application.dto.execution_test_request import ExecutionTestRequest
@@ -458,12 +459,32 @@ class FiberhomeTestRunner(TestRunnerBase):
                 },
             }
 
-        return evaluate_wifi_rssi_windows(
-            ssid_24=ssid_24,
-            ssid_5=ssid_5,
-            min_24_percent=self._min_wifi_24_percent,
-            min_5_percent=self._min_wifi_5_percent,
-        )
+        with self._supervisor.wifi_scan_guard(self._worker_id):
+            log_both(
+                self._logger,
+                logging.INFO,
+                "Worker %s estabilizando radios WiFi antes del scan...",
+                self._worker_id,
+            )
+
+            time.sleep(3)
+
+            result = evaluate_wifi_rssi_windows(
+                ssid_24=ssid_24,
+                ssid_5=ssid_5,
+                min_24_percent=self._min_wifi_24_percent,
+                min_5_percent=self._min_wifi_5_percent,
+            )
+
+            log_both(
+                self._logger,
+                logging.INFO,
+                "Resultado scan WiFi compartido %s: %s",
+                self._worker_id,
+                result,
+            )
+
+            return result
 
     def _run_wifi_24(self, base_info: dict[str, Any], wifi_scan_result: dict[str, Any]):
         self._supervisor.update_worker_phase(

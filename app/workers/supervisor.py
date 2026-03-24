@@ -14,6 +14,7 @@ from app.workers.port_worker import PortWorker
 from app.workers.slot_connection_monitor import SlotConnectionMonitor
 from app.workers.worker_context import WorkerContext
 from app.infrastructure.network.arp_scanner import ArpScanner
+from contextlib import contextmanager
 from app.shared.constants import build_default_execution_request
 
 from app.application.event_bus.events import (
@@ -43,6 +44,7 @@ class Supervisor:
         self._auto_execution_started: dict[str, bool] = {}
 
         self._heartbeat_interval_s = settings.monitor.heartbeat_interval_s
+        self._wifi_scan_lock = threading.Lock()
 
         self._ping_service = PingService(timeout_ms=settings.monitor.ping_timeout_ms)
         self._arp_scanner = ArpScanner()
@@ -476,7 +478,32 @@ class Supervisor:
                 phase,
             )
             return True
+        
+    @contextmanager
+    def wifi_scan_guard(self, worker_id: str):
+        log_both(
+            self._logger,
+            logging.INFO,
+            "Worker %s esperando lock global de WiFi...",
+            worker_id,
+        )
 
+        with self._wifi_scan_lock:
+            log_both(
+                self._logger,
+                logging.INFO,
+                "Worker %s obtuvo lock global de WiFi.",
+                worker_id,
+            )
+            try:
+                yield
+            finally:
+                log_both(
+                    self._logger,
+                    logging.INFO,
+                    "Worker %s liberó lock global de WiFi.",
+                    worker_id,
+                )
     # ==========================================================
     # Helpers internos
     # ==========================================================
@@ -517,6 +544,69 @@ class Supervisor:
         )
 
         self._event_bus.publish(event)
+
+    def handle_physical_disconnect(self, worker_id: str) -> None:
+        with self._lock:
+            # Si todavía hay una ejecución activa, no limpiamos el contexto.
+            active_worker = self._active_port_workers.get(worker_id)
+            if active_worker is not None and active_worker.is_running():
+                log_console(
+                    self._logger,
+                    logging.INFO,
+                    "Worker %s desconectado, pero aún tiene PortWorker activo. No se libera todavía.",
+                    worker_id,
+                )
+                return
+
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                return
+
+            self._auto_execution_started[worker_id] = False
+
+            self._reset_context(context)
+            self._publish_worker_state(self._worker_contexts[worker_id])
+
+        self.reset_test_indicators(worker_id)
+
+        log_both(
+            self._logger,
+            logging.INFO,
+            "Worker %s reiniciado a estado base tras desconexión física.",
+            worker_id,
+        )
+
+    def reset_test_indicators(self, worker_id: str) -> None:
+        test_names = (
+            "PING",
+            "FACTORY_RESET",
+            "SOFTWARE_UPDATE",
+            "USB",
+            "FIBER_TX",
+            "FIBER_RX",
+            "WIFI_2G",
+            "WIFI_5G",
+        )
+
+        for test_name in test_names:
+            visual_state = "OFFLINE" if test_name == "PING" else "IDLE"
+
+            self.publish_test_indicator(
+                worker_id=worker_id,
+                test_name=test_name,
+                visual_state=visual_state,
+            )
+
+        self.publish_global_visual_mode(
+            worker_id=worker_id,
+            mode="EXPECTED_RESET",
+            active=False,
+        )
+        self.publish_global_visual_mode(
+            worker_id=worker_id,
+            mode="EXPECTED_UPDATE",
+            active=False,
+        )
 
     def publish_test_indicator(
         self,
