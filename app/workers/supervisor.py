@@ -14,6 +14,7 @@ from app.workers.port_worker import PortWorker
 from app.workers.slot_connection_monitor import SlotConnectionMonitor
 from app.workers.worker_context import WorkerContext
 from app.infrastructure.network.arp_scanner import ArpScanner
+from app.shared.constants import build_default_execution_request
 
 from app.application.event_bus.events import (
     TestIndicatorChangedEvent,
@@ -39,12 +40,32 @@ class Supervisor:
         self._worker_contexts: dict[str, WorkerContext] = {}
         self._active_port_workers: dict[str, PortWorker] = {}
         self._slot_monitors: dict[str, SlotConnectionMonitor] = {}
+        self._auto_execution_started: dict[str, bool] = {}
 
         self._heartbeat_interval_s = settings.monitor.heartbeat_interval_s
 
         self._ping_service = PingService(timeout_ms=settings.monitor.ping_timeout_ms)
         self._arp_scanner = ArpScanner()
 
+    @staticmethod
+    def _resolve_initial_phase_from_request(request: ExecutionTestRequest) -> str:
+        enabled = request.enabled_tests()
+        if not enabled:
+            return "WAITING"
+
+        first_test = enabled[0]
+
+        mapping = {
+            "factory_reset": "FACTORY_RESET",
+            "software_update": "SOFTWARE_UPDATE",
+            "usb": "USB",
+            "fiber_tx": "FIBER_TX",
+            "fiber_rx": "FIBER_RX",
+            "wifi_2g": "WIFI_2G",
+            "wifi_5g": "WIFI_5G",
+        }
+
+        return mapping.get(first_test, "WAITING")
     # ==========================================================
     # Ciclo de vida
     # ==========================================================
@@ -99,15 +120,16 @@ class Supervisor:
     # ==========================================================
     def _initialize_worker_contexts(self) -> None:
         self._worker_contexts.clear()
-
+        self._auto_execution_started.clear()
         for station in self._settings.station_map:
             context = WorkerContext(
                 worker_id=station.worker_id,
                 port_index=station.port_index,
                 expected_ip=station.expected_ip,
             )
-
+            
             self._worker_contexts[station.worker_id] = context
+            self._auto_execution_started[station.worker_id] = False
             self._publish_worker_state(context)
 
         log_console(
@@ -394,6 +416,7 @@ class Supervisor:
                 context.mark_connected()
             else:
                 context.mark_disconnected()
+                self._auto_execution_started[worker_id] = False
 
             if disconnect_expected is not None:
                 context.set_disconnect_expected(disconnect_expected)
@@ -526,3 +549,69 @@ class Supervisor:
             extra_payload=extra_payload,
         )
         self._event_bus.publish(event)
+
+    def try_auto_start_execution(self, worker_id: str) -> bool:
+        with self._lock:
+            if not self._settings.auto_execution.enabled:
+                return False
+
+            if not self._settings.auto_execution.trigger_on_connect:
+                return False
+
+            context = self._worker_contexts.get(worker_id)
+            if context is None:
+                return False
+
+            snapshot = context.snapshot()
+
+            if not snapshot.get("connected", False):
+                return False
+
+            if snapshot.get("state") != "IDLE" or snapshot.get("phase") != "WAITING":
+                return False
+
+            if worker_id in self._active_port_workers and self._active_port_workers[worker_id].is_running():
+                return False
+
+            if self._auto_execution_started.get(worker_id, False):
+                return False
+
+            request_data = build_default_execution_request(worker_id)
+            request = ExecutionTestRequest.from_dict(request_data)
+
+            assigned = self.assign_worker(
+                worker_id=worker_id,
+                device_ip=snapshot.get("expected_ip"),
+                mac=snapshot.get("device_mac"),
+                status="USADO",
+                phase=self._resolve_initial_phase_from_request(request),
+            )
+            if not assigned:
+                return False
+
+            if request.device_sn is not None:
+                context.bind_device(device_sn=request.device_sn)
+            if request.vendor is not None:
+                context.bind_device(vendor=request.vendor)
+            if request.model is not None:
+                context.bind_device(model=request.model)
+
+            context.set_metadata("execution_tests", request.tests)
+            context.set_metadata("enabled_tests", request.enabled_tests())
+            context.set_metadata("request_payload", request.to_dict())
+
+            started = self.start_port_worker(request)
+            if not started:
+                self.release_worker(worker_id)
+                return False
+
+            self._auto_execution_started[worker_id] = True
+
+            log_both(
+                self._logger,
+                logging.INFO,
+                "Autoejecución iniciada para %s. Pruebas: %s",
+                worker_id,
+                ", ".join(request.enabled_tests()),
+            )
+            return True

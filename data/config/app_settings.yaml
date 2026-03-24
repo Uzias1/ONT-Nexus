@@ -36,3 +36,7 @@ selenium:
   window_height: 900
   chrome_binary_path: "tools/browser/chrome-win64/chrome.exe"
   chromedriver_path: "tools/browser/chromedriver-win64/chromedriver.exe"
+
+auto_execution:
+  enabled: true
+  trigger_on_connect: true

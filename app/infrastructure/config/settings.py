@@ -71,6 +71,11 @@ class SeleniumConfig:
     chromedriver_path: str | None
 
 @dataclass(slots=True)
+class AutoExecutionConfig:
+    enabled: bool
+    trigger_on_connect: bool
+
+@dataclass(slots=True)
 class Settings:
     app: AppConfig
     monitor: MonitorConfig
@@ -79,6 +84,7 @@ class Settings:
     logging: LoggingConfig
     database: DatabaseConfig
     selenium: SeleniumConfig
+    auto_execution: AutoExecutionConfig
     station_map: list[StationEntryConfig] = field(default_factory=list)
 
 def _read_yaml_file(file_path: Path) -> dict[str, Any]:
@@ -138,6 +144,7 @@ def _build_settings(
     logging_section = app_data.get("logging", {})
     database_section = app_data.get("database", {})
     selenium_section = app_data.get("selenium", {})
+    auto_execution_section = app_data.get("auto_execution", {})
     station_map = _build_station_map(station_map_data)
 
     return Settings(
@@ -179,6 +186,10 @@ def _build_settings(
             window_height=int(selenium_section.get("window_height", 900)),
             chrome_binary_path=str(selenium_section.get("chrome_binary_path", None)),
             chromedriver_path=str(selenium_section.get("chromedriver_path", None)),
+        ),
+        auto_execution=AutoExecutionConfig(
+            enabled=bool(auto_execution_section.get("enabled", True)),
+            trigger_on_connect=bool(auto_execution_section.get("trigger_on_connect", True)),
         ),
         station_map=station_map,
     )

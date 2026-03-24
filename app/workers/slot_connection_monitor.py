@@ -147,10 +147,6 @@ class SlotConnectionMonitor:
             mac=detected_mac,
         )
 
-        # - Si ya estaba conectado, no debemos limpiar disconnect_expected,
-        #   porque podríamos estar justo antes del reboot esperado.
-        # - Solo lo limpiamos cuando realmente hubo reconexión
-        #   (connected_before == False y ahora volvió a responder).
         if connected_before:
             self._supervisor.set_worker_connected(
                 worker_id=self._worker_id,
@@ -174,6 +170,8 @@ class SlotConnectionMonitor:
                 expected_ip,
                 detected_mac or "-",
             )
+
+            self._supervisor.try_auto_start_execution(self._worker_id)
 
     def _handle_failed_ping(
         self,
