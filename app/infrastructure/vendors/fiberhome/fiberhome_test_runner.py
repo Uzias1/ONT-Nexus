@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import logging
-import time
-from typing import TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Any
 
 from app.application.dto.execution_test_request import ExecutionTestRequest
 from app.infrastructure.config.settings import Settings
-from app.infrastructure.logging.logger import get_logger, log_both, log_console
+from app.infrastructure.logging.logger import get_logger, log_both
 from app.infrastructure.selenium.driver_factory import DriverFactory
 from app.infrastructure.selenium.selenium_session import SeleniumSession
 from app.infrastructure.vendors.base.test_runner_base import TestRunnerBase
@@ -15,22 +15,13 @@ from app.infrastructure.vendors.fiberhome.fiberhome_adapter import (
     FiberhomeExecutionResult,
 )
 from app.infrastructure.vendors.fiberhome.fiberhome_navigator import FiberhomeNavigator
+from app.shared.wifi.windows_rssi import evaluate_wifi_rssi_windows
 
 if TYPE_CHECKING:
     from app.workers.supervisor import Supervisor
 
 
 class FiberhomeTestRunner(TestRunnerBase):
-    """
-    Runner real para FiberHome.
-
-    Objetivo actual:
-    - login real
-    - extraer SN y MAC mínimos
-    - ejecutar factory_reset
-    - ejecutar usb (vía base_info)
-    """
-
     def __init__(
         self,
         *,
@@ -43,6 +34,13 @@ class FiberhomeTestRunner(TestRunnerBase):
         self._worker_id = worker_id
         self._logger = get_logger(f"{self.__class__.__name__}.{worker_id}")
         self._adapter = FiberhomeAdapter()
+
+        self._min_tx = 0.0
+        self._max_tx = 10.0
+        self._min_rx = -28.0
+        self._max_rx = 0.0
+        self._min_wifi_24_percent = 60
+        self._min_wifi_5_percent = 60
 
     def run(self, request: ExecutionTestRequest) -> FiberhomeExecutionResult:
         snapshot = self._supervisor.get_worker_snapshot(self._worker_id)
@@ -71,12 +69,38 @@ class FiberhomeTestRunner(TestRunnerBase):
             navigator.open_root(str(target_ip))
             navigator.login("root", "admin")
 
-            # ========= Identidad mínima =========
             base_info = navigator.extract_base_info() or {}
+            ftp_info = navigator.extract_ftpclient_info() or {}
+            wifi_passwords = navigator.extract_wifi_passwords_selenium() or {}
+
+            base_info.setdefault("wifi_info", {})
+            if "password_24ghz" in wifi_passwords:
+                base_info["wifi_info"]["password_24ghz"] = wifi_passwords["password_24ghz"]
+            if "password_5ghz" in wifi_passwords:
+                base_info["wifi_info"]["password_5ghz"] = wifi_passwords["password_5ghz"]
+
+            log_both(
+                self._logger,
+                logging.INFO,
+                "base_info wifi_info %s: %s | ssid_24=%s | ssid_5=%s",
+                self._worker_id,
+                base_info.get("wifi_info", {}),
+                (base_info.get("wifi_info") or {}).get("ssid_24ghz") or base_info.get("ssid_24ghz"),
+                (base_info.get("wifi_info") or {}).get("ssid_5ghz") or base_info.get("ssid_5ghz"),
+            )
+            log_both(
+                self._logger,
+                logging.INFO,
+                "ftp_info %s keys=%s session_valid=%s",
+                self._worker_id,
+                list(ftp_info.keys()),
+                ftp_info.get("session_valid"),
+            )
+
             serial_number = (
-                base_info.get("gponsn")
-                or base_info.get("SerialNumber")
-                or base_info.get("serial_number")
+                base_info.get("serial_number_logical")
+                or base_info.get("raw_data", {}).get("gponsn")
+                or base_info.get("raw_data", {}).get("SerialNumber")
             )
 
             result.identity = self._adapter.build_identity(
@@ -85,7 +109,6 @@ class FiberhomeTestRunner(TestRunnerBase):
                 ip=str(target_ip),
             )
 
-            # Reflejar identidad mínima al contexto vivo
             context = self._supervisor.get_worker_context(self._worker_id)
             if context is not None:
                 context.bind_device(
@@ -93,215 +116,445 @@ class FiberhomeTestRunner(TestRunnerBase):
                     device_mac=result.identity.mac_address,
                     vendor="FIBERHOME",
                 )
-
-            # ========= Pruebas habilitadas =========
-            if request.is_test_enabled("factory_reset"):
-                # Publicar para la UI
-                self._supervisor.publish_global_visual_mode(
-                    worker_id=self._worker_id,
-                    mode="EXCEPTED_RESET",
-                    active=True,
-                )
-                result.tests["factory_reset"] = self._run_factory_reset(navigator)
-                self._supervisor.publish_global_visual_mode(
-                    worker_id=self._worker_id,
-                    mode="EXCEPTED_RESET",
-                    active=False,
-                )
+                context.set_metadata("base_info", base_info)
+                context.set_metadata("ftp_info", ftp_info)
 
             if request.is_test_enabled("usb"):
-                # Después del reset, normalmente hace falta relogin
-                if "factory_reset" in result.tests and result.tests["factory_reset"].status == "PASS":
-                    navigator.open_root(str(target_ip))
-                    navigator.login("root", "admin")
-                # Evento
-                self._supervisor.publish_test_indicator(
-                    worker_id=self._worker_id,
-                    test_name="USB",
-                    visual_state="RUNNING",
-                )
-                result.tests["usb"] = self._run_usb(navigator)
+                result.tests["usb"] = self._run_usb(base_info, ftp_info)
+
+            if request.is_test_enabled("fiber_tx"):
+                result.tests["fiber_tx"] = self._run_fiber_tx(base_info)
+
+            if request.is_test_enabled("fiber_rx"):
+                result.tests["fiber_rx"] = self._run_fiber_rx(base_info)
+
+            wifi_scan_result: dict[str, Any] | None = None
+
+            if request.is_test_enabled("wifi_2g"):
+                wifi_scan_result = self._run_wifi_scan(base_info)
+                result.tests["wifi_2g"] = self._run_wifi_24(base_info, wifi_scan_result)
+
+            if request.is_test_enabled("wifi_5g"):
+                if wifi_scan_result is None:
+                    wifi_scan_result = self._run_wifi_scan(base_info)
+                result.tests["wifi_5g"] = self._run_wifi_5(base_info, wifi_scan_result)
 
             return result
 
         finally:
             session.quit()
 
-    # ==========================================================
-    # Factory Reset
-    # ==========================================================
-    def _run_factory_reset(self, navigator: FiberhomeNavigator):
-        self._supervisor.update_worker_phase(
-            worker_id=self._worker_id,
-            phase="FACTORY_RESET",
-            status="TESTING",
-        )
-
-        self._supervisor.publish_global_visual_mode(
-            worker_id=self._worker_id,
-            mode="EXPECTED_RESET",
-            active=True,
-        )
-
-        # El monitor debe considerar que la caída es esperada.
-        self._supervisor.set_worker_connected(
-            worker_id=self._worker_id,
-            connected=True,
-            disconnect_expected=True,
-            connection_reason="factory_reset_started",
-        )
-
-        navigator.go_to_factory_reset()
-        navigator.trigger_factory_reset()
-
-        disconnected = self._wait_until_connected_state(False, timeout_s=90)
-        reconnected = self._wait_until_connected_state(True, timeout_s=240)
-
-        self._supervisor.publish_global_visual_mode(
-            worker_id=self._worker_id,
-            mode="EXPECTED_RESET",
-            active=False,
-        )
-
-        details = {
-            "disconnect_detected": disconnected,
-            "reconnected": reconnected,
-        }
-
-        if not disconnected:
-            result = self._adapter.build_test_result(
-                name="factory_reset",
-                status="FAIL",
-                details={**details, "reason": "No se detectó desconexión tras factory reset."},
-            )
-            log_both(
-                self._logger,
-                logging.ERROR,
-                "Resultado FACTORY_RESET %s: %s",
-                self._worker_id,
-                result.details,
-            )
-            return result
-
-        if not reconnected:
-            result = self._adapter.build_test_result(
-                name="factory_reset",
-                status="FAIL",
-                details={**details, "reason": "No se detectó reconexión tras factory reset."},
-            )
-            log_both(
-                self._logger,
-                logging.ERROR,
-                "Resultado FACTORY_RESET %s: %s",
-                self._worker_id,
-                result.details,
-            )
-            return result
-
-        self._supervisor.publish_test_indicator(
-            worker_id=self._worker_id,
-            test_name="FACTORY_RESET",
-            visual_state="COMPLETED",
-        )
-
-        result = self._adapter.build_test_result(
-            name="factory_reset",
-            status="PASS",
-            details=details,
-        )
-
-        log_both(
-            self._logger,
-            logging.INFO,
-            "Resultado FACTORY_RESET %s: PASS | %s",
-            self._worker_id,
-            details,
-        )
-        return result
-
-    # ==========================================================
-    # USB
-    # ==========================================================
-    def _run_usb(self, navigator: FiberhomeNavigator):
+    def _run_usb(self, base_info: dict[str, Any], ftp_info: dict[str, Any]):
         self._supervisor.update_worker_phase(
             worker_id=self._worker_id,
             phase="USB",
             status="TESTING",
         )
-
         self._supervisor.publish_test_indicator(
             worker_id=self._worker_id,
             test_name="USB",
             visual_state="RUNNING",
         )
 
-        base_info = navigator.extract_base_info() or {}
-        usb_ports = base_info.get("usb_port_num")
-        usb_status = base_info.get("usb_status")
+        result_details: dict[str, Any] = {}
+
+        raw = base_info.get("raw_data") or {}
+        usb_ports = (
+            base_info.get("usb_ports")
+            or raw.get("usb_ports")
+            or base_info.get("usb_port_num")
+            or raw.get("usb_port_num")
+            or 0
+        )
+        usb_status = base_info.get("usb_status") or raw.get("usb_status")
 
         try:
-            usb_ports = int(usb_ports) if usb_ports is not None else 0
-        except Exception:
+            usb_ports = int(usb_ports)
+        except (TypeError, ValueError):
             usb_ports = 0
 
-        details = {
-            "usb_ports": usb_ports,
-            "usb_status": usb_status,
-        }
+        result_details["hardware_method"] = "AJAX get_base_info"
+        result_details["usb_ports_capacity"] = usb_ports
+        if usb_status is not None:
+            result_details["usb_status_flag"] = usb_status
 
-        if usb_ports > 0:
+        if usb_ports <= 0:
+            step = self._adapter.build_test_result(
+                name="usb",
+                status="FAIL",
+                details={**result_details, "note": "El equipo no reporta puertos USB en base_info."},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="USB",
+                visual_state="FAIL",
+            )
+            log_both(self._logger, logging.ERROR, "Resultado USB %s: %s", self._worker_id, step.details)
+            return step
+
+        devices: list[str] = []
+        connected_count = 0
+
+        session_raw = ftp_info.get("session_valid")
+        try:
+            session_valid = int(session_raw)
+        except (TypeError, ValueError):
+            session_valid = None
+
+        result_details["ftp_session_valid"] = session_raw
+
+        usb_list_raw = ftp_info.get("UsbList") or ftp_info.get("USBList") or ""
+        usb_list_raw = str(usb_list_raw)
+
+        if usb_list_raw:
+            devices = [d for d in re.split(r"[,\s]+", usb_list_raw) if d]
+            connected_count = len(devices)
+            result_details["usb_devices_connected"] = connected_count
+            result_details["usb_devices_list"] = devices
+            result_details["usb_list_raw"] = usb_list_raw
+        else:
+            if session_valid not in (1, None):
+                result_details["warning_ftp"] = (
+                    f"get_ftpclient_info devolvió session_valid={session_raw} y no se recibió UsbList."
+                )
+
+        usb_status_norm = (raw.get("usb_status") or base_info.get("usb_status") or "").strip().lower()
+        result_details["method"] = "AJAX get_base_info"
+
+        if connected_count >= usb_ports and usb_ports > 0:
+            step = self._adapter.build_test_result(
+                name="usb",
+                status="PASS",
+                details={
+                    **result_details,
+                    "note": f"Capacidad declarada: {usb_ports}; dispositivos detectados: {connected_count} (OK).",
+                },
+            )
             self._supervisor.publish_test_indicator(
                 worker_id=self._worker_id,
                 test_name="USB",
                 visual_state="COMPLETED",
             )
+            log_both(self._logger, logging.INFO, "Resultado USB %s: PASS | %s", self._worker_id, step.details)
+            return step
 
-            result = self._adapter.build_test_result(
+        elif connected_count > 0 and usb_ports > 0:
+            step = self._adapter.build_test_result(
+                name="usb",
+                status="FAIL",
+                details={**result_details, "error": "Se detectaron algunos dispositivos USB, pero no coincide con la capacidad."},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="USB",
+                visual_state="FAIL",
+            )
+            log_both(self._logger, logging.ERROR, "Resultado USB %s: FAIL | %s", self._worker_id, step.details)
+            return step
+
+        if usb_status_norm == "active":
+            step = self._adapter.build_test_result(
                 name="usb",
                 status="PASS",
-                details=details,
+                details={**result_details, "usb_status": "Active"},
             )
-
-            log_both(
-                self._logger,
-                logging.INFO,
-                "Resultado USB %s: PASS | %s",
-                self._worker_id,
-                details,
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="USB",
+                visual_state="COMPLETED",
             )
-            return result
+            log_both(self._logger, logging.INFO, "Resultado USB %s: PASS | %s", self._worker_id, step.details)
+            return step
 
+        step = self._adapter.build_test_result(
+            name="usb",
+            status="FAIL",
+            details={**result_details, "usb_status": "Inactive", "method": "AJAX get_base_info"},
+        )
         self._supervisor.publish_test_indicator(
             worker_id=self._worker_id,
             test_name="USB",
             visual_state="FAIL",
         )
+        log_both(self._logger, logging.ERROR, "Resultado USB %s: FAIL | %s", self._worker_id, step.details)
+        return step
 
-        result = self._adapter.build_test_result(
-            name="usb",
+    def _run_fiber_tx(self, base_info: dict[str, Any]):
+        self._supervisor.update_worker_phase(
+            worker_id=self._worker_id,
+            phase="FIBER_TX",
+            status="TESTING",
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="FIBER_TX",
+            visual_state="RUNNING",
+        )
+
+        tx_raw = base_info.get("tx_power_dbm")
+        details = {
+            "method": "AJAX get_base_info",
+            "tx_power_dbm": tx_raw,
+        }
+
+        if tx_raw is None:
+            step = self._adapter.build_test_result(
+                name="fiber_tx",
+                status="FAIL",
+                details={**details, "reason": "No se encontró TX en base_info."},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="FIBER_TX",
+                visual_state="FAIL",
+            )
+            log_both(self._logger, logging.ERROR, "Resultado FIBER_TX %s: FAIL | %s", self._worker_id, step.details)
+            return step
+
+        try:
+            tx_val = float(tx_raw)
+        except (TypeError, ValueError):
+            tx_val = None
+
+        if tx_val is None:
+            step = self._adapter.build_test_result(
+                name="fiber_tx",
+                status="FAIL",
+                details={**details, "note": "Valor TX no convertible a número"},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="FIBER_TX",
+                visual_state="FAIL",
+            )
+            log_both(self._logger, logging.ERROR, "Resultado FIBER_TX %s: FAIL | %s", self._worker_id, step.details)
+            return step
+
+        if self._min_tx <= tx_val <= self._max_tx:
+            step = self._adapter.build_test_result(
+                name="fiber_tx",
+                status="PASS",
+                details={**details, "note": f"TX dentro de rango ({self._min_tx}..{self._max_tx})"},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="FIBER_TX",
+                visual_state="COMPLETED",
+            )
+            log_both(self._logger, logging.INFO, "Resultado FIBER_TX %s: PASS | %s", self._worker_id, step.details)
+            return step
+
+        step = self._adapter.build_test_result(
+            name="fiber_tx",
             status="FAIL",
-            details={**details, "reason": "El equipo no reporta puertos USB válidos en base_info."},
+            details={**details, "note": f"TX fuera de rango ({self._min_tx}..{self._max_tx})"},
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="FIBER_TX",
+            visual_state="FAIL",
+        )
+        log_both(self._logger, logging.ERROR, "Resultado FIBER_TX %s: FAIL | %s", self._worker_id, step.details)
+        return step
+
+    def _run_fiber_rx(self, base_info: dict[str, Any]):
+        self._supervisor.update_worker_phase(
+            worker_id=self._worker_id,
+            phase="FIBER_RX",
+            status="TESTING",
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="FIBER_RX",
+            visual_state="RUNNING",
         )
 
-        log_both(
-            self._logger,
-            logging.ERROR,
-            "Resultado USB %s: FAIL | %s",
-            self._worker_id,
-            result.details,
+        rx_raw = base_info.get("rx_power_dbm")
+        details = {
+            "method": "AJAX get_base_info",
+            "rx_power_dbm": rx_raw,
+        }
+
+        if rx_raw is None:
+            step = self._adapter.build_test_result(
+                name="fiber_rx",
+                status="FAIL",
+                details={**details, "reason": "No se encontró RX en base_info."},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="FIBER_RX",
+                visual_state="FAIL",
+            )
+            log_both(self._logger, logging.ERROR, "Resultado FIBER_RX %s: FAIL | %s", self._worker_id, step.details)
+            return step
+
+        try:
+            rx_val = float(rx_raw)
+        except (TypeError, ValueError):
+            rx_val = None
+
+        if rx_val is None:
+            step = self._adapter.build_test_result(
+                name="fiber_rx",
+                status="FAIL",
+                details={**details, "note": "Valor RX no convertible a número"},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="FIBER_RX",
+                visual_state="FAIL",
+            )
+            log_both(self._logger, logging.ERROR, "Resultado FIBER_RX %s: FAIL | %s", self._worker_id, step.details)
+            return step
+
+        if self._min_rx <= rx_val <= self._max_rx:
+            step = self._adapter.build_test_result(
+                name="fiber_rx",
+                status="PASS",
+                details={**details, "note": f"RX dentro de rango ({self._min_rx}..{self._max_rx})"},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="FIBER_RX",
+                visual_state="COMPLETED",
+            )
+            log_both(self._logger, logging.INFO, "Resultado FIBER_RX %s: PASS | %s", self._worker_id, step.details)
+            return step
+
+        step = self._adapter.build_test_result(
+            name="fiber_rx",
+            status="FAIL",
+            details={**details, "note": f"RX fuera de rango ({self._min_rx}..{self._max_rx})"},
         )
-        return result
-    
-    # ==========================================================
-    # Helpers
-    # ==========================================================
-    def _wait_until_connected_state(self, expected_connected: bool, timeout_s: int) -> bool:
-        start = time.time()
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="FIBER_RX",
+            visual_state="FAIL",
+        )
+        log_both(self._logger, logging.ERROR, "Resultado FIBER_RX %s: FAIL | %s", self._worker_id, step.details)
+        return step
 
-        while time.time() - start < timeout_s:
-            snapshot = self._supervisor.get_worker_snapshot(self._worker_id)
-            if snapshot is not None and bool(snapshot.get("connected", False)) == expected_connected:
-                return True
-            time.sleep(2)
+    def _run_wifi_scan(self, base_info: dict[str, Any]) -> dict[str, Any]:
+        wifi_info = base_info.get("wifi_info") or {}
 
-        return False
+        ssid_24 = (
+            wifi_info.get("ssid_24ghz")
+            or base_info.get("ssid_24ghz")
+        )
+        ssid_5 = (
+            wifi_info.get("ssid_5ghz")
+            or base_info.get("ssid_5ghz")
+        )
+
+        if not ssid_24 or not ssid_5:
+            return {
+                "name": "potencia_wifi",
+                "status": "FAIL",
+                "details": {
+                    "errors": ["No se encontraron SSID 2.4 y/o 5 GHz en base_info"],
+                    "ssid_24": ssid_24,
+                    "ssid_5": ssid_5,
+                },
+            }
+
+        return evaluate_wifi_rssi_windows(
+            ssid_24=ssid_24,
+            ssid_5=ssid_5,
+            min_24_percent=self._min_wifi_24_percent,
+            min_5_percent=self._min_wifi_5_percent,
+        )
+
+    def _run_wifi_24(self, base_info: dict[str, Any], wifi_scan_result: dict[str, Any]):
+        self._supervisor.update_worker_phase(
+            worker_id=self._worker_id,
+            phase="WIFI_2G",
+            status="TESTING",
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="WIFI_2G",
+            visual_state="RUNNING",
+        )
+
+        wifi_info = base_info.get("wifi_info") or {}
+        details = {
+            "ssid": wifi_info.get("ssid_24ghz") or base_info.get("ssid_24ghz"),
+            "password_unencrypted": wifi_info.get("password_24ghz") or base_info.get("password_24ghz"),
+            "signal_percent": wifi_scan_result.get("details", {}).get("best_24_percent"),
+            "wifi_scan": wifi_scan_result,
+        }
+
+        if wifi_scan_result.get("details", {}).get("pass_24"):
+            step = self._adapter.build_test_result(
+                name="wifi_2g",
+                status="PASS",
+                details={**details, "method": "netsh_wlan_scan"},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="WIFI_2G",
+                visual_state="COMPLETED",
+            )
+            log_both(self._logger, logging.INFO, "Resultado WIFI_2G %s: PASS | %s", self._worker_id, step.details)
+            return step
+
+        step = self._adapter.build_test_result(
+            name="wifi_2g",
+            status="FAIL",
+            details=details,
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="WIFI_2G",
+            visual_state="FAIL",
+        )
+        log_both(self._logger, logging.ERROR, "Resultado WIFI_2G %s: FAIL | %s", self._worker_id, step.details)
+        return step
+
+    def _run_wifi_5(self, base_info: dict[str, Any], wifi_scan_result: dict[str, Any]):
+        self._supervisor.update_worker_phase(
+            worker_id=self._worker_id,
+            phase="WIFI_5G",
+            status="TESTING",
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="WIFI_5G",
+            visual_state="RUNNING",
+        )
+
+        wifi_info = base_info.get("wifi_info") or {}
+        details = {
+            "ssid": wifi_info.get("ssid_5ghz") or base_info.get("ssid_5ghz"),
+            "password_unencrypted": wifi_info.get("password_5ghz") or base_info.get("password_5ghz"),
+            "signal_percent": wifi_scan_result.get("details", {}).get("best_5_percent"),
+            "wifi_scan": wifi_scan_result,
+        }
+
+        if wifi_scan_result.get("details", {}).get("pass_5"):
+            step = self._adapter.build_test_result(
+                name="wifi_5g",
+                status="PASS",
+                details={**details, "method": "netsh_wlan_scan"},
+            )
+            self._supervisor.publish_test_indicator(
+                worker_id=self._worker_id,
+                test_name="WIFI_5G",
+                visual_state="COMPLETED",
+            )
+            log_both(self._logger, logging.INFO, "Resultado WIFI_5G %s: PASS | %s", self._worker_id, step.details)
+            return step
+
+        step = self._adapter.build_test_result(
+            name="wifi_5g",
+            status="FAIL",
+            details=details,
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="WIFI_5G",
+            visual_state="FAIL",
+        )
+        log_both(self._logger, logging.ERROR, "Resultado WIFI_5G %s: FAIL | %s", self._worker_id, step.details)
+        return step

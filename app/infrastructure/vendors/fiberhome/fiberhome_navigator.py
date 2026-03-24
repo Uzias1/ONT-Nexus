@@ -15,17 +15,6 @@ from app.infrastructure.vendors.base.navigator_base import NavigatorBase
 
 
 class FiberhomeNavigator(NavigatorBase):
-    """
-    Navegador Selenium real para FiberHome.
-
-    Basado en la lógica ya probada de tus mixins:
-    - login con user_name / loginpp
-    - detección de sesión activa
-    - logout best effort
-    - navegación a reset
-    - extracción de base_info vía AJAX usando cookies de Selenium
-    """
-
     USERNAME = "root"
     PASSWORD = "admin"
 
@@ -35,9 +24,6 @@ class FiberhomeNavigator(NavigatorBase):
         self._host: str | None = None
         self._base_url: str | None = None
 
-    # ==========================================================
-    # Base
-    # ==========================================================
     def open_root(self, ip: str) -> None:
         self._host = ip
         self._base_url = f"http://{ip}"
@@ -55,7 +41,6 @@ class FiberhomeNavigator(NavigatorBase):
         driver = self.session.driver
         login_url = f"{self._base_url}/html/login_inter.html"
 
-        # Si ya hay driver con sesión rara, intentar limpiar
         try:
             self.logout_best_effort()
         except Exception:
@@ -114,7 +99,7 @@ class FiberhomeNavigator(NavigatorBase):
 
         result = WebDriverWait(driver, 20).until(post_login_ok)
         if result == "BUSY":
-            raise RuntimeError("FiberHome reportó sesión activa al intentar login.")
+            raise RuntimeError("FiberHome reportó sesión activa al intentar login().")
 
         log_console(self._logger, logging.INFO, "Login FiberHome correcto.")
 
@@ -137,9 +122,6 @@ class FiberhomeNavigator(NavigatorBase):
 
         return False
 
-    # ==========================================================
-    # Helpers de navegación multi-frame
-    # ==========================================================
     def find_element_anywhere(
         self,
         by: str,
@@ -156,7 +138,6 @@ class FiberhomeNavigator(NavigatorBase):
         while time.time() < end_time:
             try:
                 driver.switch_to.default_content()
-
                 queue = deque([[]])
                 visited: set[tuple[int, ...]] = set()
 
@@ -197,50 +178,6 @@ class FiberhomeNavigator(NavigatorBase):
             f"No se encontró {desc or selector} en {timeout}s. Último error: {last_error}"
         )
 
-    def click_anywhere(
-        self,
-        selectors: list[tuple[str, str]],
-        *,
-        desc: str,
-        timeout: int = 10,
-    ) -> bool:
-        driver = self.session.driver
-        start = time.time()
-        last_error = None
-
-        while time.time() - start < timeout:
-            for by, selector in selectors:
-                try:
-                    el = self.find_element_anywhere(
-                        by,
-                        selector,
-                        desc=desc,
-                        timeout=2,
-                    )
-
-                    try:
-                        driver.execute_script(
-                            "arguments[0].scrollIntoView({block:'center'});",
-                            el,
-                        )
-                    except Exception:
-                        pass
-
-                    try:
-                        driver.execute_script("arguments[0].click();", el)
-                    except Exception as exc_js:
-                        last_error = exc_js
-                        el.click()
-
-                    return True
-
-                except Exception as exc:
-                    last_error = exc
-
-            time.sleep(0.2)
-
-        raise RuntimeError(f"No se pudo encontrar/clickear '{desc}'. Último error: {last_error}")
-
     def _wait_not_busy_login_page(self, driver, login_url: str, max_wait: int = 120) -> bool:
         start = time.time()
 
@@ -257,71 +194,6 @@ class FiberhomeNavigator(NavigatorBase):
 
         return False
 
-    # ==========================================================
-    # Factory Reset
-    # ==========================================================
-    def go_to_factory_reset(self) -> None:
-        driver = self.session.driver
-
-        driver.get(f"{self._base_url}/html/main_inter.html")
-        time.sleep(1.5)
-
-        self.click_anywhere(
-            [(By.ID, "first_menu_manage")],
-            desc="Management",
-            timeout=15,
-        )
-
-        # Preferimos ID, pero dejamos fallback por texto
-        try:
-            self.click_anywhere(
-                [(By.ID, "span_device_admin")],
-                desc="Device Management",
-                timeout=8,
-            )
-        except Exception:
-            self.click_anywhere(
-                [(By.XPATH, "//a[contains(text(), 'Device Management')]")],
-                desc="Device Management",
-                timeout=8,
-            )
-
-    def trigger_factory_reset(self) -> None:
-        driver = self.session.driver
-
-        try:
-            restore_button = self.find_element_anywhere(
-                By.ID,
-                "Restart_button",
-                desc="Restart_button",
-                timeout=6,
-            )
-        except Exception:
-            restore_button = self.find_element_anywhere(
-                By.XPATH,
-                "//input[@value='Restore']",
-                desc="Restore button",
-                timeout=6,
-            )
-
-        try:
-            driver.execute_script("arguments[0].click();", restore_button)
-        except Exception:
-            restore_button.click()
-
-        try:
-            WebDriverWait(driver, 5).until(lambda d: d.switch_to.alert)
-            alert = driver.switch_to.alert
-            alert.accept()
-        except Exception:
-            # algunos modelos no muestran alerta siempre
-            pass
-
-        log_console(self._logger, logging.INFO, "Factory Reset enviado en FiberHome.")
-
-    # ==========================================================
-    # AJAX / extracción mínima
-    # ==========================================================
     def build_requests_session(self) -> requests.Session:
         if not self._base_url:
             raise RuntimeError("No hay base_url configurada.")
@@ -333,56 +205,295 @@ class FiberhomeNavigator(NavigatorBase):
 
         return req_session
 
-    def ajax_get(self, tag: str) -> dict[str, Any] | None:
+    def ajax_get(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """
+        Alineado con tu _ajax_get viejo:
+        /cgi-bin/ajax?ajaxmethod=<method>
+        """
         if not self._base_url:
             raise RuntimeError("No hay base_url configurada.")
 
         req_session = self.build_requests_session()
-        url = f"{self._base_url}/cgi-bin/ajax"
+        ajax_url = f"{self._base_url}/cgi-bin/ajax"
+
+        query = dict(params or {})
+        query["ajaxmethod"] = method
+        query["_"] = str(time.time())
+
+        response = req_session.get(
+            ajax_url,
+            params=query,
+            auth=("root", "admin"),
+            timeout=5,
+            verify=False,
+        )
+        response.raise_for_status()
 
         try:
-            response = req_session.get(
-                url,
-                params={"_tag": tag},
-                timeout=8,
-                verify=False,
-            )
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, dict):
-                return data
-        except Exception:
-            # algunos firmwares responden por POST o con formatos distintos
-            pass
-
-        try:
-            response = req_session.post(
-                url,
-                data={"_tag": tag},
-                timeout=8,
-                verify=False,
-            )
-            response.raise_for_status()
             data = response.json()
             if isinstance(data, dict):
                 return data
         except Exception:
             pass
 
-        return None
+        return {}
+
+    def extract_wifi_allwan(self) -> dict[str, Any] | None:
+        """
+        Método preferido.
+        Basado en _extract_wifi_allwan() del código viejo.
+        """
+        try:
+            response = self.ajax_get("get_allwan_info_broadBand")
+
+            if not response or response.get("session_valid") != 1:
+                return None
+
+            wifi_info: dict[str, Any] = {}
+            wifi_obj = response.get("wifi_obj_enable", {})
+
+            ssids_24ghz = []
+            ssids_5ghz = []
+
+            for i in range(1, 9):
+                ssid_key = f"ssid{i}"
+                config_key = f"ConfigActive{i}"
+
+                ssid = wifi_obj.get(ssid_key, "")
+                active = wifi_obj.get(config_key, "0")
+
+                if ssid and ssid != "":
+                    wifi_entry = {
+                        "ssid": ssid,
+                        "enabled": active == "1",
+                        "index": i,
+                    }
+
+                    if i <= 4:
+                        ssids_24ghz.append(wifi_entry)
+                    else:
+                        ssids_5ghz.append(wifi_entry)
+
+            if ssids_24ghz:
+                primary_24 = next((s for s in ssids_24ghz if s["enabled"]), ssids_24ghz[0])
+                wifi_info["ssid_24ghz"] = primary_24["ssid"]
+                wifi_info["enabled_24ghz"] = primary_24["enabled"]
+
+            if ssids_5ghz:
+                primary_5 = next((s for s in ssids_5ghz if s["enabled"]), ssids_5ghz[0])
+                wifi_info["ssid_5ghz"] = primary_5["ssid"]
+                wifi_info["enabled_5ghz"] = primary_5["enabled"]
+
+            wifi_info["wifi_5g_capable"] = response.get("wifi_5g_enable") == 1
+            wifi_info["wifi_device_count"] = response.get("wifi_device", 0)
+            wifi_info["wifi_port_num"] = response.get("wifi_port_num", 0)
+            wifi_info["extraction_method"] = "get_allwan_info_broadBand"
+
+            return wifi_info
+
+        except Exception:
+            return None
+
+    def extract_wifi_info_fallback(self) -> dict[str, Any]:
+        """
+        Basado en _extract_wifi_info() del código viejo.
+        Se usa solo si get_allwan_info_broadBand no devolvió SSIDs.
+        """
+        wifi_info: dict[str, Any] = {}
+
+        # PRIORIDAD 1: get_wifi_info -> 2.4 GHz
+        try:
+            wifi_24_response = self.ajax_get("get_wifi_info")
+            if wifi_24_response.get("session_valid") == 1:
+                if wifi_24_response.get("SSID"):
+                    wifi_info["ssid_24ghz"] = wifi_24_response["SSID"]
+                if wifi_24_response.get("PreSharedKey"):
+                    wifi_info["password_24ghz"] = wifi_24_response["PreSharedKey"]
+                if wifi_24_response.get("Channel"):
+                    wifi_info["channel_24ghz"] = wifi_24_response["Channel"]
+                if wifi_24_response.get("Enable"):
+                    wifi_info["enabled_24ghz"] = wifi_24_response["Enable"] == "1"
+        except Exception:
+            pass
+
+        # PRIORIDAD 2: get_5g_wifi_info -> 5 GHz
+        try:
+            wifi_5g_response = self.ajax_get("get_5g_wifi_info")
+            if wifi_5g_response.get("session_valid") == 1:
+                if wifi_5g_response.get("SSID"):
+                    wifi_info["ssid_5ghz"] = wifi_5g_response["SSID"]
+                if wifi_5g_response.get("PreSharedKey"):
+                    wifi_info["password_5ghz"] = wifi_5g_response["PreSharedKey"]
+                if wifi_5g_response.get("Channel"):
+                    wifi_info["channel_5ghz"] = wifi_5g_response["Channel"]
+                if wifi_5g_response.get("Enable"):
+                    wifi_info["enabled_5ghz"] = wifi_5g_response["Enable"] == "1"
+        except Exception:
+            pass
+
+        # PRIORIDAD 3: get_wifi_status
+        try:
+            wifi_status = self.ajax_get("get_wifi_status")
+            if wifi_status.get("session_valid") == 1 and wifi_status.get("wifi_status"):
+                wifi_networks = wifi_status["wifi_status"]
+
+                for network in wifi_networks:
+                    if network.get("Enable") != "1":
+                        continue
+
+                    standard = str(network.get("Standard", "")).lower()
+                    is_5ghz = "ac" in standard or "ax" in standard or standard == "a"
+
+                    ssid = network.get("SSID", "")
+                    psk = network.get("PreSharedKey", "")
+                    channel = network.get("channelIsInUse", network.get("Channel", "Auto"))
+
+                    if is_5ghz:
+                        if "ssid_5ghz" not in wifi_info and ssid:
+                            wifi_info["ssid_5ghz"] = ssid
+                        if "password_5ghz" not in wifi_info and psk:
+                            wifi_info["password_5ghz"] = psk
+                        wifi_info["channel_5ghz"] = channel
+                        wifi_info["enabled_5ghz"] = True
+                        wifi_info["standard_5ghz"] = network.get("Standard")
+                    else:
+                        if "ssid_24ghz" not in wifi_info and ssid:
+                            wifi_info["ssid_24ghz"] = ssid
+                        if "password_24ghz" not in wifi_info and psk:
+                            wifi_info["password_24ghz"] = psk
+                        wifi_info["channel_24ghz"] = channel
+                        wifi_info["enabled_24ghz"] = True
+                        wifi_info["standard_24ghz"] = network.get("Standard")
+        except Exception:
+            pass
+
+        return wifi_info
+
+    def extract_wifi_info_complete(self) -> dict[str, Any]:
+        """
+        Flujo completo como en el proyecto viejo:
+        1) get_allwan_info_broadBand
+        2) si no da SSIDs, fallback a extract_wifi_info_fallback
+        """
+        wifi_info = self.extract_wifi_allwan() or {}
+
+        if not wifi_info.get("ssid_24ghz") or not wifi_info.get("ssid_5ghz"):
+            fallback = self.extract_wifi_info_fallback() or {}
+
+            for key, value in fallback.items():
+                if key not in wifi_info or not wifi_info.get(key):
+                    wifi_info[key] = value
+
+            if fallback and "extraction_method" not in wifi_info:
+                wifi_info["extraction_method"] = "fallback_extract_wifi_info"
+
+        return wifi_info
 
     def extract_base_info(self) -> dict[str, Any] | None:
         base_info = self.ajax_get("get_base_info")
         if not base_info:
             return None
 
-        session_valid = base_info.get("session_valid")
-        try:
-            session_valid = int(session_valid)
-        except Exception:
-            session_valid = session_valid
+        raw_data = dict(base_info)
 
-        if session_valid not in (1, "1", True):
+        wifi_info: dict[str, Any] = {}
+        
+
+        normalized: dict[str, Any] = {
+            "raw_data": raw_data,
+            "model_name": raw_data.get("ModelName") or raw_data.get("model_name"),
+            "manufacturer": raw_data.get("Manufacturer") or raw_data.get("manufacturer"),
+            "hardware_version": raw_data.get("HardwareVersion") or raw_data.get("hardware_version"),
+            "software_version": raw_data.get("SoftwareVersion") or raw_data.get("software_version"),
+            "serial_number_logical": raw_data.get("gponsn") or raw_data.get("SerialNumber"),
+            "tx_power_dbm": (
+                raw_data.get("tx_power_dbm")
+                or raw_data.get("txPower")
+                or raw_data.get("TxPower")
+                or raw_data.get("txpower")
+            ),
+            "rx_power_dbm": (
+                raw_data.get("rx_power_dbm")
+                or raw_data.get("rxPower")
+                or raw_data.get("RxPower")
+                or raw_data.get("rxpower")
+            ),
+            "usb_ports": raw_data.get("usb_ports") or raw_data.get("usb_port_num"),
+            "usb_status": raw_data.get("usb_status"),
+
+            # WiFi agrupado
+            "wifi_info": wifi_info,
+
+            # WiFi expuesto directo también para compatibilidad
+            "ssid_24ghz": wifi_info.get("ssid_24ghz"),
+            "ssid_5ghz": wifi_info.get("ssid_5ghz"),
+            "password_24ghz": wifi_info.get("password_24ghz"),
+            "password_5ghz": wifi_info.get("password_5ghz"),
+            "channel_24ghz": wifi_info.get("channel_24ghz"),
+            "channel_5ghz": wifi_info.get("channel_5ghz"),
+            "enabled_24ghz": wifi_info.get("enabled_24ghz"),
+            "enabled_5ghz": wifi_info.get("enabled_5ghz"),
+        }
+        try:
+            normalized["wifi_info"] = self.extract_wifi_info_complete()
+        except Exception:
+            normalized["wifi_info"] = {}
+        return normalized
+
+    def extract_ftpclient_info(self) -> dict[str, Any] | None:
+        try:
+            return self.ajax_get("get_ftpclient_info")
+        except Exception:
             return None
 
-        return base_info
+    def extract_wifi_passwords_selenium(self) -> dict[str, str]:
+        driver = self.session.driver
+        passwords: dict[str, str] = {}
+
+        try:
+            network_menu = self.find_element_anywhere(By.ID, "first_menu_network", desc="Network", timeout=5)
+            if not network_menu:
+                return passwords
+
+            network_menu.click()
+            time.sleep(1)
+
+            try:
+                wlan_security = self.find_element_anywhere(By.ID, "thr_security", desc="WLAN Security", timeout=5)
+                if wlan_security:
+                    wlan_security.click()
+                    time.sleep(2)
+
+                    psk_field = self.find_element_anywhere(By.ID, "PreSharedKey", desc="PreSharedKey", timeout=5)
+                    if psk_field:
+                        driver.execute_script("arguments[0].removeAttribute('class');", psk_field)
+                        time.sleep(0.5)
+                        password = psk_field.get_attribute("value")
+                        if password:
+                            passwords["password_24ghz"] = password
+            except Exception:
+                pass
+
+            try:
+                thr_5gsecurity = self.find_element_anywhere(By.ID, "thr_5Gsecurity", desc="5G Security", timeout=5)
+                if thr_5gsecurity:
+                    thr_5gsecurity.click()
+                    time.sleep(1)
+
+                    psk_5g_field = self.find_element_anywhere(By.ID, "PreSharedKey", desc="PreSharedKey 5G", timeout=3)
+                    if psk_5g_field:
+                        driver.execute_script("arguments[0].removeAttribute('class');", psk_5g_field)
+                        time.sleep(0.5)
+                        password_5g = psk_5g_field.get_attribute("value")
+                        if password_5g:
+                            passwords["password_5ghz"] = password_5g
+            except Exception:
+                pass
+
+            if "password_5ghz" not in passwords and "password_24ghz" in passwords:
+                passwords["password_5ghz"] = passwords["password_24ghz"]
+
+            return passwords
+
+        except Exception:
+            return passwords

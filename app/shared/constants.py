@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 DEFAULT_EXECUTION_TESTS: dict[str, bool] = {
-    "factory_reset": True,
+    "factory_reset": False,
     "software_update": False,
     "usb": True,
-    "fiber_tx": False,
-    "fiber_rx": False,
-    "wifi_2g":  False,
-    "wifi_5g":  False,
+    "fiber_tx": True,
+    "fiber_rx": True,
+    "wifi_2g":  True,
+    "wifi_5g":  True,
 }
 
 TEST_EXECUTION_ORDER: tuple[str, ...] = (
