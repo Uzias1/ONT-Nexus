@@ -1,6 +1,6 @@
 *.env
 *.log
 *.pyc
-
+.venv/
 # Ignorar el driver
 tools/browser/

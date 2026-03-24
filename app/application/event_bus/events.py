@@ -12,7 +12,6 @@ class DomainEvent:
     occurred_at: datetime = field(default_factory=datetime.now)
 
 
-@dataclass(slots=True)
 class WorkerStateChangedEvent(DomainEvent):
     def __init__(
         self,
@@ -41,7 +40,6 @@ class WorkerStateChangedEvent(DomainEvent):
         )
 
 
-@dataclass(slots=True)
 class TestIndicatorChangedEvent(DomainEvent):
     def __init__(
         self,
@@ -66,7 +64,6 @@ class TestIndicatorChangedEvent(DomainEvent):
         )
 
 
-@dataclass(slots=True)
 class WorkerGlobalVisualModeEvent(DomainEvent):
     def __init__(
         self,
