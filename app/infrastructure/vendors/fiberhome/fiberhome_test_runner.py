@@ -459,6 +459,10 @@ class FiberhomeTestRunner(TestRunnerBase):
                 },
             }
 
+        retries = max(1, self._settings.wifi.scan_retries)
+        retry_delay_s = self._settings.wifi.scan_retry_delay_s
+        stabilization_delay_s = self._settings.wifi.stabilization_delay_s
+
         with self._supervisor.wifi_scan_guard(self._worker_id):
             log_both(
                 self._logger,
@@ -466,25 +470,64 @@ class FiberhomeTestRunner(TestRunnerBase):
                 "Worker %s estabilizando radios WiFi antes del scan...",
                 self._worker_id,
             )
+            time.sleep(stabilization_delay_s)
 
-            time.sleep(3)
+            last_result: dict[str, Any] | None = None
 
-            result = evaluate_wifi_rssi_windows(
-                ssid_24=ssid_24,
-                ssid_5=ssid_5,
-                min_24_percent=self._min_wifi_24_percent,
-                min_5_percent=self._min_wifi_5_percent,
-            )
+            for attempt in range(1, retries + 1):
+                result = evaluate_wifi_rssi_windows(
+                    ssid_24=ssid_24,
+                    ssid_5=ssid_5,
+                    min_24_percent=self._min_wifi_24_percent,
+                    min_5_percent=self._min_wifi_5_percent,
+                )
+                last_result = result
+
+                details = result.get("details", {})
+                pass_24 = bool(details.get("pass_24"))
+                pass_5 = bool(details.get("pass_5"))
+
+                log_both(
+                    self._logger,
+                    logging.INFO,
+                    "Intento WiFi %s/%s para %s: pass_24=%s pass_5=%s errors=%s",
+                    attempt,
+                    retries,
+                    self._worker_id,
+                    pass_24,
+                    pass_5,
+                    details.get("errors", []),
+                )
+
+                if pass_24 and pass_5:
+                    log_both(
+                        self._logger,
+                        logging.INFO,
+                        "Resultado scan WiFi compartido %s: %s",
+                        self._worker_id,
+                        result,
+                    )
+                    return result
+
+                if attempt < retries:
+                    time.sleep(retry_delay_s)
 
             log_both(
                 self._logger,
                 logging.INFO,
                 "Resultado scan WiFi compartido %s: %s",
                 self._worker_id,
-                result,
+                last_result,
             )
-
-            return result
+            return last_result or {
+                "name": "potencia_wifi",
+                "status": "FAIL",
+                "details": {
+                    "errors": ["No se obtuvo resultado de scan WiFi."],
+                    "ssid_24": ssid_24,
+                    "ssid_5": ssid_5,
+                },
+            }
 
     def _run_wifi_24(self, base_info: dict[str, Any], wifi_scan_result: dict[str, Any]):
         self._supervisor.update_worker_phase(

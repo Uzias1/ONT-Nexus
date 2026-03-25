@@ -40,3 +40,8 @@ selenium:
 auto_execution:
   enabled: true
   trigger_on_connect: true
+
+wifi:
+  scan_retries: 3
+  scan_retry_delay_s: 4
+  stabilization_delay_s: 3

@@ -76,6 +76,12 @@ class AutoExecutionConfig:
     trigger_on_connect: bool
 
 @dataclass(slots=True)
+class WifiConfing:
+    scan_retries: int
+    scan_retry_delay_s: float
+    stabilization_delay_s: float
+
+@dataclass(slots=True)
 class Settings:
     app: AppConfig
     monitor: MonitorConfig
@@ -85,6 +91,7 @@ class Settings:
     database: DatabaseConfig
     selenium: SeleniumConfig
     auto_execution: AutoExecutionConfig
+    wifi: WifiConfing
     station_map: list[StationEntryConfig] = field(default_factory=list)
 
 def _read_yaml_file(file_path: Path) -> dict[str, Any]:
@@ -145,6 +152,7 @@ def _build_settings(
     database_section = app_data.get("database", {})
     selenium_section = app_data.get("selenium", {})
     auto_execution_section = app_data.get("auto_execution", {})
+    wifi_section = app_data.get("wifi", {})
     station_map = _build_station_map(station_map_data)
 
     return Settings(
@@ -190,6 +198,11 @@ def _build_settings(
         auto_execution=AutoExecutionConfig(
             enabled=bool(auto_execution_section.get("enabled", True)),
             trigger_on_connect=bool(auto_execution_section.get("trigger_on_connect", True)),
+        ),
+        wifi=WifiConfing(
+            scan_retries = int(wifi_section.get("scan_retries", 3)),
+            scan_retry_delay_s = float(wifi_section.get("scan_retry_delay_s", 4)),
+            stabilization_delay_s = float(wifi_section.get("stabilization_delay_s", 3)),
         ),
         station_map=station_map,
     )
