@@ -186,24 +186,26 @@ class SlotConnectionMonitor:
             connection_reason="expected_disconnect" if disconnect_expected else "lost_ping",
         )
 
-        if connected_before:
-            if disconnect_expected:
-                log_console(
-                    self._logger,
-                    logging.INFO,
-                    "Desconexión esperada confirmada en %s.",
-                    self._worker_id,
-                )
-            else:
-                log_console(
-                    self._logger,
-                    logging.WARNING,
-                    "Desconexión real confirmada en %s.",
-                    self._worker_id,
-                )
+        if not connected_before:
+            return
 
-                # Solo en desconexión real reiniciamos el slot a estado base
-                self._supervisor.handle_physical_disconnect(self._worker_id)
+        if disconnect_expected:
+            log_console(
+                self._logger,
+                logging.INFO,
+                "Desconexión esperada confirmada en %s.",
+                self._worker_id,
+            )
+            return
+
+        log_console(
+            self._logger,
+            logging.WARNING,
+            "Desconexión real confirmada en %s.",
+            self._worker_id,
+        )
+
+        self._supervisor.handle_physical_disconnect(self._worker_id)
 
     def _handle_failed_ping(
         self,
@@ -252,3 +254,6 @@ class SlotConnectionMonitor:
                     "Desconexión real confirmada en %s.",
                     self._worker_id,
                 )
+
+                # Reinicio de hilo
+                self._supervisor.handle_physical_disconnect(self._worker_id)

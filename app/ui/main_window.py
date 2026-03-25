@@ -295,7 +295,17 @@ class MainWindow(QMainWindow):
         port.device_ip = snapshot.get("device_ip")
         port.device_mac = snapshot.get("device_mac") or snapshot.get("mac")
 
-        # Solo recalculamos conectividad base y fase si no hay modo global activo
+        # Si el backend ya reseteó el slot, limpiamos todo el estado visual local
+        if (
+            port.status == "IDLE"
+            and port.phase == "WAITING"
+            and not port.connected
+        ):
+            port.global_mode = None
+            port.circle_states = ["IDLE"] * 8
+            port.circle_states[0] = "OFFLINE"
+            return
+
         self._apply_base_states(port)
 
     def _apply_base_states(self, port: PortUiState) -> None:

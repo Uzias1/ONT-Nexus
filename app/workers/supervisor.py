@@ -42,6 +42,7 @@ class Supervisor:
         self._active_port_workers: dict[str, PortWorker] = {}
         self._slot_monitors: dict[str, SlotConnectionMonitor] = {}
         self._auto_execution_started: dict[str, bool] = {}
+        self._disconnect_cleanup_done: dict[str, bool] = {}
 
         self._heartbeat_interval_s = settings.monitor.heartbeat_interval_s
         self._wifi_scan_lock = threading.Lock()
@@ -123,6 +124,7 @@ class Supervisor:
     def _initialize_worker_contexts(self) -> None:
         self._worker_contexts.clear()
         self._auto_execution_started.clear()
+        self._disconnect_cleanup_done.clear()
         for station in self._settings.station_map:
             context = WorkerContext(
                 worker_id=station.worker_id,
@@ -132,6 +134,7 @@ class Supervisor:
             
             self._worker_contexts[station.worker_id] = context
             self._auto_execution_started[station.worker_id] = False
+            self._disconnect_cleanup_done[station.worker_id] = False
             self._publish_worker_state(context)
 
         log_console(
@@ -416,6 +419,7 @@ class Supervisor:
 
             if connected:
                 context.mark_connected()
+                self._disconnect_cleanup_done[worker_id] = False
             else:
                 context.mark_disconnected()
                 self._auto_execution_started[worker_id] = False
@@ -427,8 +431,9 @@ class Supervisor:
                 context.set_metadata("connection_reason", connection_reason)
 
             self._publish_worker_state(context)
-            return True
 
+        return True
+    
     def set_worker_error(
         self,
         *,
@@ -507,6 +512,43 @@ class Supervisor:
     # ==========================================================
     # Helpers internos
     # ==========================================================
+    def mark_disconnect_cleanup_pending(self, worker_id: str) -> None:
+        with self._lock:
+            self._disconnect_cleanup_done[worker_id] = False
+
+    def mark_disconnect_cleanup_done(self, worker_id: str) -> None:
+        with self._lock:
+            self._disconnect_cleanup_done[worker_id] = True
+
+    def _reset_worker_after_disconnect_if_safe(self, worker_id: str) -> None:
+        context = self._worker_contexts.get(worker_id)
+        if context is None:
+            return
+
+        active_worker = self._active_port_workers.get(worker_id)
+        if active_worker is not None and active_worker.is_running():
+            log_console(
+                self._logger,
+                logging.INFO,
+                "Worker %s sigue con PortWorker activo; no se reinicia aún.",
+                worker_id,
+            )
+            return
+
+        self._auto_execution_started[worker_id] = False
+
+        self._reset_context(context)
+        self._publish_worker_state(self._worker_contexts[worker_id])
+
+        self.reset_test_indicators(worker_id)
+
+        log_both(
+            self._logger,
+            logging.INFO,
+            "Worker %s reiniciado a estado base tras desconexión física.",
+            worker_id,
+        )
+
     def _reset_context(self, context: WorkerContext) -> None:
         port_index = context.port_index
         worker_id = context.worker_id
@@ -547,7 +589,10 @@ class Supervisor:
 
     def handle_physical_disconnect(self, worker_id: str) -> None:
         with self._lock:
-            # Si todavía hay una ejecución activa, no limpiamos el contexto.
+            # Si ya limpiamos este ciclo de desconexión, no repetir
+            if self._disconnect_cleanup_done.get(worker_id, False):
+                return
+
             active_worker = self._active_port_workers.get(worker_id)
             if active_worker is not None and active_worker.is_running():
                 log_console(
@@ -562,10 +607,21 @@ class Supervisor:
             if context is None:
                 return
 
+            # Si ya está en estado base y desconectado, no limpiar otra vez
+            snapshot = context.snapshot()
+            if (
+                snapshot.get("state") == "IDLE"
+                and snapshot.get("phase") == "WAITING"
+                and not snapshot.get("connected", False)
+            ):
+                self._disconnect_cleanup_done[worker_id] = True
+                return
+
             self._auto_execution_started[worker_id] = False
 
             self._reset_context(context)
             self._publish_worker_state(self._worker_contexts[worker_id])
+            self._disconnect_cleanup_done[worker_id] = True
 
         self.reset_test_indicators(worker_id)
 
