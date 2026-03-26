@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections import deque
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -497,3 +499,114 @@ class FiberhomeNavigator(NavigatorBase):
 
         except Exception:
             return passwords
+        
+    def goto_local_upgrade_menu(self, timeout: int = 20) -> bool:
+        if not self._base_url:
+            raise RuntimeError("No hay base_url configurada.")
+
+        driver = self.session.driver
+
+        try:
+            driver.get(f"{self._base_url}/html/main_inter.html")
+        except Exception:
+            pass
+
+        management = self.find_element_anywhere(By.ID, "first_menu_manage", desc="Management", timeout=timeout)
+        try:
+            driver.execute_script("arguments[0].click();", management)
+        except Exception:
+            management.click()
+        time.sleep(0.8)
+
+        device_management = self.find_element_anywhere(By.ID, "span_device_admin", desc="Device Management", timeout=timeout)
+        try:
+            driver.execute_script("arguments[0].click();", device_management)
+        except Exception:
+            device_management.click()
+        time.sleep(0.8)
+
+        local_upgrade = self.find_element_anywhere(By.ID, "thr_update", desc="Local Upgrade", timeout=timeout)
+        try:
+            driver.execute_script("arguments[0].click();", local_upgrade)
+        except Exception:
+            local_upgrade.click()
+        time.sleep(1.0)
+
+        return True
+
+    def upload_firmware_via_form(self, firmware_path: str) -> None:
+        driver = self.session.driver
+        firmware_path = os.path.abspath(firmware_path)
+
+        if not Path(firmware_path).exists():
+            raise FileNotFoundError(f"No existe firmware_path: {firmware_path}")
+
+        self.goto_local_upgrade_menu(timeout=20)
+
+        file_input = self.find_element_anywhere(
+            By.ID,
+            "upgradefile",
+            desc="Input firmware",
+            timeout=20,
+        )
+        file_input.send_keys(firmware_path)
+        time.sleep(0.5)
+
+        upgrade_button = self.find_element_anywhere(
+            By.ID,
+            "upgrade_button",
+            desc="Botón upgrade",
+            timeout=20,
+        )
+
+        try:
+            driver.execute_script("arguments[0].click();", upgrade_button)
+        except Exception:
+            upgrade_button.click()
+
+        try:
+            time.sleep(1)
+            alert = driver.switch_to.alert
+            alert.accept()
+        except Exception:
+            pass
+
+        time.sleep(1)
+
+    def wait_for_router(self, *, max_wait_down: int = 120, max_wait_up: int = 300) -> bool:
+        if not self._base_url:
+            raise RuntimeError("No hay base_url configurada.")
+
+        started_reboot = False
+
+        start = time.time()
+        while time.time() - start < max_wait_down:
+            try:
+                requests.get(self._base_url, timeout=3, verify=False)
+            except requests.RequestException:
+                started_reboot = True
+                log_console(self._logger, logging.INFO, "El router dejó de responder; reinicio detectado.")
+                break
+
+            time.sleep(5)
+
+        if not started_reboot:
+            log_console(
+                self._logger,
+                logging.WARNING,
+                "No se confirmó caída del router durante la ventana de espera de reinicio.",
+            )
+
+        start = time.time()
+        while time.time() - start < max_wait_up:
+            try:
+                response = requests.get(self._base_url, timeout=3, verify=False)
+                if response.status_code == 200:
+                    log_console(self._logger, logging.INFO, "El router volvió a responder.")
+                    return True
+            except requests.RequestException:
+                pass
+
+            time.sleep(5)
+
+        return False
