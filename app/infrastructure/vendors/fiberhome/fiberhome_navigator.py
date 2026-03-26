@@ -573,7 +573,7 @@ class FiberhomeNavigator(NavigatorBase):
 
         time.sleep(1)
 
-    def wait_for_router(self, *, max_wait_down: int = 120, max_wait_up: int = 300) -> bool:
+    def wait_for_router_reboot_start(self, *, max_wait_down: int = 120) -> bool:
         if not self._base_url:
             raise RuntimeError("No hay base_url configurada.")
 
@@ -597,16 +597,4 @@ class FiberhomeNavigator(NavigatorBase):
                 "No se confirmó caída del router durante la ventana de espera de reinicio.",
             )
 
-        start = time.time()
-        while time.time() - start < max_wait_up:
-            try:
-                response = requests.get(self._base_url, timeout=3, verify=False)
-                if response.status_code == 200:
-                    log_console(self._logger, logging.INFO, "El router volvió a responder.")
-                    return True
-            except requests.RequestException:
-                pass
-
-            time.sleep(5)
-
-        return False
+        return started_reboot

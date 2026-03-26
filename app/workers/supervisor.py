@@ -214,6 +214,7 @@ class Supervisor:
                 settings=self._settings,
                 supervisor=self,
                 worker_id=worker_id,
+                ping_service=self._ping_service,
                 request=request,
             )
 

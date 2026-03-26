@@ -97,7 +97,8 @@ class SoftwareUpdateConfig:
     login_retry_delay_s: float
     post_upload_delay_s: float
     reboot_wait_down_s: int
-    reboot_wait_up_s: int
+    ping_return_timeout_s: int
+    post_reboot_stabilization_s: float
     vendors: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -238,7 +239,10 @@ def _build_settings(
             login_retry_delay_s=float(software_update_section.get("login_retry_delay_s", 10.0)),
             post_upload_delay_s=float(software_update_section.get("post_upload_delay_s", 2.0)),
             reboot_wait_down_s=int(software_update_section.get("reboot_wait_down_s", 120)),
-            reboot_wait_up_s=int(software_update_section.get("reboot_wait_up_s", 300)),
+            ping_return_timeout_s=int(software_update_section.get("ping_return_timeout_s", 300)),
+            post_reboot_stabilization_s=float(
+                software_update_section.get("post_reboot_stabilization_s", 20.0)
+            ),
             vendors=dict(software_update_section.get("vendors", {})),
         ),
         station_map=station_map,

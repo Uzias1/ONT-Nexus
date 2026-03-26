@@ -21,6 +21,7 @@ from app.application.services.result_evaluator import TestResultEvaluator
 from app.application.services.treshold_provider import TestThresholdProvider
 from app.application.services.software_update_evaluator import SoftwareUpdateEvaluator
 from app.application.services.software_update_provider import SoftwareUpdateProvider
+from app.infrastructure.network.ping_service import PingService
 
 if TYPE_CHECKING:
     from app.workers.supervisor import Supervisor
@@ -33,6 +34,7 @@ class FiberhomeTestRunner(TestRunnerBase):
         settings: Settings,
         supervisor: Supervisor,
         worker_id: str,
+        ping_service: PingService,
     ) -> None:
         self._settings = settings
         self._supervisor = supervisor
@@ -44,6 +46,7 @@ class FiberhomeTestRunner(TestRunnerBase):
 
         self._threshold_provider = TestThresholdProvider()
         self._thresholds = self._threshold_provider.get_thresholds(vendor="FIBERHOME")
+        self._ping_service = ping_service
 
         self._evaluator = TestResultEvaluator(
             supervisor=self._supervisor,
@@ -705,17 +708,16 @@ class FiberhomeTestRunner(TestRunnerBase):
             time.sleep(self._settings.software_update.post_upload_delay_s)
 
             self._publish_software_update_stage(
-                stage="WAITING_REBOOT",
-                progress_percent=70,
-                message="Esperando reinicio del equipo tras la carga del firmware.",
+                stage="WAITING_REBOOT_START",
+                progress_percent=65,
+                message="Esperando que el equipo inicie el reinicio.",
             )
 
-            router_back = navigator.wait_for_router(
+            reboot_started = navigator.wait_for_router_reboot_start(
                 max_wait_down=self._settings.software_update.reboot_wait_down_s,
-                max_wait_up=self._settings.software_update.reboot_wait_up_s,
             )
 
-            if not router_back:
+            if not reboot_started:
                 step = self._adapter.build_test_result(
                     name="software_update",
                     status="FAIL",
@@ -725,13 +727,13 @@ class FiberhomeTestRunner(TestRunnerBase):
                         "target_version": decision.target_version,
                         "firmware_path": str(firmware.firmware_path),
                         "firmware_filename": firmware.filename,
-                        "reason": "No se confirmó que el router volviera a estar en línea.",
+                        "reason": "No se confirmó que el equipo iniciara el reinicio tras subir el firmware.",
                     },
                 )
                 self._publish_software_update_stage(
-                    stage="FAIL_REBOOT_TIMEOUT",
+                    stage="FAIL_REBOOT_NOT_STARTED",
                     progress_percent=100,
-                    message="El router no volvió a responder tras la actualización.",
+                    message="No se detectó caída del equipo después de iniciar la actualización.",
                     visual_state="FAIL",
                     extra_payload=step.details,
                 )
@@ -743,6 +745,57 @@ class FiberhomeTestRunner(TestRunnerBase):
                     step.details,
                 )
                 return step, base_info
+
+            self._publish_software_update_stage(
+                stage="WAITING_PING_RETURN",
+                progress_percent=75,
+                message="Esperando que el equipo vuelva a responder por ping.",
+            )
+
+            ping_back = self._wait_until_ping_back(
+                target_ip=target_ip,
+                timeout_s=self._settings.software_update.ping_return_timeout_s,
+            )
+
+            if not ping_back:
+                step = self._adapter.build_test_result(
+                    name="software_update",
+                    status="FAIL",
+                    details={
+                        "update_required": True,
+                        "current_version": decision.current_version,
+                        "target_version": decision.target_version,
+                        "firmware_path": str(firmware.firmware_path),
+                        "firmware_filename": firmware.filename,
+                        "reason": "El equipo no volvió a responder por ping dentro del tiempo esperado.",
+                    },
+                )
+                self._publish_software_update_stage(
+                    stage="FAIL_PING_RETURN_TIMEOUT",
+                    progress_percent=100,
+                    message="El equipo no volvió a responder por ping tras la actualización.",
+                    visual_state="FAIL",
+                    extra_payload=step.details,
+                )
+                log_both(
+                    self._logger,
+                    logging.ERROR,
+                    "Resultado SOFTWARE_UPDATE %s: FAIL | %s",
+                    self._worker_id,
+                    step.details,
+                )
+                return step, base_info
+
+            self._publish_software_update_stage(
+                stage="POST_REBOOT_STABILIZATION",
+                progress_percent=82,
+                message="Esperando estabilización del equipo después de recuperar conectividad.",
+                extra_payload={
+                    "post_reboot_stabilization_s": self._settings.software_update.post_reboot_stabilization_s,
+                },
+            )
+
+            time.sleep(self._settings.software_update.post_reboot_stabilization_s)
 
             self._publish_software_update_stage(
                 stage="RELOGIN_AFTER_UPDATE",
@@ -863,3 +916,22 @@ class FiberhomeTestRunner(TestRunnerBase):
                 mode="EXPECTED_UPDATE",
                 active=False,
             )
+
+    def _wait_until_ping_back(
+        self,
+        *,
+        target_ip: str,
+        timeout_s: int,
+        poll_interval_s: float = 2.0,
+    ) -> bool:
+        deadline = time.time() + timeout_s
+
+        while time.time() < deadline:
+            if self._ping_service.ping(target_ip):
+                return True
+            time.sleep(poll_interval_s)
+
+        return False
+
+    def _is_host_reachable(self, target_ip: str) -> bool:
+        return self._ping_service.ping(target_ip)

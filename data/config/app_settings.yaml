@@ -42,9 +42,9 @@ auto_execution:
   trigger_on_connect: true
 
 wifi:
-  scan_retries: 5
-  scan_retry_delay_s: 3
-  stabilization_delay_s: 2
+  scan_retries: 15
+  scan_retry_delay_s: 2
+  stabilization_delay_s: 1
 
 paths:
   bins_root: "C:/ONT-NEXUS/bins"
@@ -55,7 +55,8 @@ software_update:
   login_retry_delay_s: 10
   post_upload_delay_s: 2
   reboot_wait_down_s: 120
-  reboot_wait_up_s: 300
+  ping_return_timeout_s: 300
+  post_reboot_stabilization_s: 60
   vendors:
     fiberhome:
       superuser_username: "admin"
