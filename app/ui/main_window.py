@@ -310,7 +310,7 @@ class MainWindow(QMainWindow):
 
     def _apply_base_states(self, port: PortUiState) -> None:
         # El primer círculo siempre refleja conectividad
-        port.circle_states[0] = "RUNNING" if port.connected else "OFFLINE"
+        port.circle_states[0] = "PASS" if port.connected else "OFFLINE"
 
         # Si el slot terminó en FAIL y hay fase conocida, pintar esa fase en rojo
         if port.status in {"FAIL", "ERROR"}:
@@ -322,7 +322,7 @@ class MainWindow(QMainWindow):
         states = ["IDLE"] * 8
 
         # Indicador de conectividad / ping
-        states[0] = "RUNNING" if connected else "OFFLINE"
+        states[0] = "PASS" if connected else "OFFLINE"
 
         if status in {"FAIL", "ERROR"}:
             phase_index = PHASE_TO_INDEX.get(phase)

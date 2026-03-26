@@ -17,6 +17,8 @@ from app.infrastructure.vendors.fiberhome.fiberhome_adapter import (
 )
 from app.infrastructure.vendors.fiberhome.fiberhome_navigator import FiberhomeNavigator
 from app.shared.wifi.windows_rssi import evaluate_wifi_rssi_windows
+from app.application.services.result_evaluator import TestResultEvaluator
+from app.application.services.treshold_provider import TestThresholdProvider
 
 if TYPE_CHECKING:
     from app.workers.supervisor import Supervisor
@@ -36,12 +38,16 @@ class FiberhomeTestRunner(TestRunnerBase):
         self._logger = get_logger(f"{self.__class__.__name__}.{worker_id}")
         self._adapter = FiberhomeAdapter()
 
-        self._min_tx = 0.0
-        self._max_tx = 10.0
-        self._min_rx = -28.0
-        self._max_rx = 0.0
-        self._min_wifi_24_percent = 60
-        self._min_wifi_5_percent = 60
+        self._threshold_provider = TestThresholdProvider()
+        self._thresholds = self._threshold_provider.get_thresholds(vendor="FIBERHOME")
+
+        self._evaluator = TestResultEvaluator(
+            supervisor=self._supervisor,
+            worker_id=self._worker_id,
+            adapter=self._adapter,
+            logger=self._logger,
+            thresholds=self._thresholds,
+        )
 
     def run(self, request: ExecutionTestRequest) -> FiberhomeExecutionResult:
         snapshot = self._supervisor.get_worker_snapshot(self._worker_id)
@@ -234,7 +240,7 @@ class FiberhomeTestRunner(TestRunnerBase):
             self._supervisor.publish_test_indicator(
                 worker_id=self._worker_id,
                 test_name="USB",
-                visual_state="COMPLETED",
+                visual_state="PASS",
             )
             log_both(self._logger, logging.INFO, "Resultado USB %s: PASS | %s", self._worker_id, step.details)
             return step
@@ -262,7 +268,7 @@ class FiberhomeTestRunner(TestRunnerBase):
             self._supervisor.publish_test_indicator(
                 worker_id=self._worker_id,
                 test_name="USB",
-                visual_state="COMPLETED",
+                visual_state="PASS",
             )
             log_both(self._logger, logging.INFO, "Resultado USB %s: PASS | %s", self._worker_id, step.details)
             return step
@@ -298,65 +304,10 @@ class FiberhomeTestRunner(TestRunnerBase):
             "tx_power_dbm": tx_raw,
         }
 
-        if tx_raw is None:
-            step = self._adapter.build_test_result(
-                name="fiber_tx",
-                status="FAIL",
-                details={**details, "reason": "No se encontró TX en base_info."},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="FIBER_TX",
-                visual_state="FAIL",
-            )
-            log_both(self._logger, logging.ERROR, "Resultado FIBER_TX %s: FAIL | %s", self._worker_id, step.details)
-            return step
-
-        try:
-            tx_val = float(tx_raw)
-        except (TypeError, ValueError):
-            tx_val = None
-
-        if tx_val is None:
-            step = self._adapter.build_test_result(
-                name="fiber_tx",
-                status="FAIL",
-                details={**details, "note": "Valor TX no convertible a número"},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="FIBER_TX",
-                visual_state="FAIL",
-            )
-            log_both(self._logger, logging.ERROR, "Resultado FIBER_TX %s: FAIL | %s", self._worker_id, step.details)
-            return step
-
-        if self._min_tx <= tx_val <= self._max_tx:
-            step = self._adapter.build_test_result(
-                name="fiber_tx",
-                status="PASS",
-                details={**details, "note": f"TX dentro de rango ({self._min_tx}..{self._max_tx})"},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="FIBER_TX",
-                visual_state="COMPLETED",
-            )
-            log_both(self._logger, logging.INFO, "Resultado FIBER_TX %s: PASS | %s", self._worker_id, step.details)
-            return step
-
-        step = self._adapter.build_test_result(
-            name="fiber_tx",
-            status="FAIL",
-            details={**details, "note": f"TX fuera de rango ({self._min_tx}..{self._max_tx})"},
+        return self._evaluator.evaluate_fiber_tx(
+            value=tx_raw,
+            source_details=details,
         )
-        self._supervisor.publish_test_indicator(
-            worker_id=self._worker_id,
-            test_name="FIBER_TX",
-            visual_state="FAIL",
-        )
-        log_both(self._logger, logging.ERROR, "Resultado FIBER_TX %s: FAIL | %s", self._worker_id, step.details)
-        return step
 
     def _run_fiber_rx(self, base_info: dict[str, Any]):
         self._supervisor.update_worker_phase(
@@ -376,65 +327,10 @@ class FiberhomeTestRunner(TestRunnerBase):
             "rx_power_dbm": rx_raw,
         }
 
-        if rx_raw is None:
-            step = self._adapter.build_test_result(
-                name="fiber_rx",
-                status="FAIL",
-                details={**details, "reason": "No se encontró RX en base_info."},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="FIBER_RX",
-                visual_state="FAIL",
-            )
-            log_both(self._logger, logging.ERROR, "Resultado FIBER_RX %s: FAIL | %s", self._worker_id, step.details)
-            return step
-
-        try:
-            rx_val = float(rx_raw)
-        except (TypeError, ValueError):
-            rx_val = None
-
-        if rx_val is None:
-            step = self._adapter.build_test_result(
-                name="fiber_rx",
-                status="FAIL",
-                details={**details, "note": "Valor RX no convertible a número"},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="FIBER_RX",
-                visual_state="FAIL",
-            )
-            log_both(self._logger, logging.ERROR, "Resultado FIBER_RX %s: FAIL | %s", self._worker_id, step.details)
-            return step
-
-        if self._min_rx <= rx_val <= self._max_rx:
-            step = self._adapter.build_test_result(
-                name="fiber_rx",
-                status="PASS",
-                details={**details, "note": f"RX dentro de rango ({self._min_rx}..{self._max_rx})"},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="FIBER_RX",
-                visual_state="COMPLETED",
-            )
-            log_both(self._logger, logging.INFO, "Resultado FIBER_RX %s: PASS | %s", self._worker_id, step.details)
-            return step
-
-        step = self._adapter.build_test_result(
-            name="fiber_rx",
-            status="FAIL",
-            details={**details, "note": f"RX fuera de rango ({self._min_rx}..{self._max_rx})"},
+        return self._evaluator.evaluate_fiber_rx(
+            value=rx_raw,
+            source_details=details,
         )
-        self._supervisor.publish_test_indicator(
-            worker_id=self._worker_id,
-            test_name="FIBER_RX",
-            visual_state="FAIL",
-        )
-        log_both(self._logger, logging.ERROR, "Resultado FIBER_RX %s: FAIL | %s", self._worker_id, step.details)
-        return step
 
     def _run_wifi_scan(self, base_info: dict[str, Any]) -> dict[str, Any]:
         wifi_info = base_info.get("wifi_info") or {}
@@ -478,8 +374,6 @@ class FiberhomeTestRunner(TestRunnerBase):
                 result = evaluate_wifi_rssi_windows(
                     ssid_24=ssid_24,
                     ssid_5=ssid_5,
-                    min_24_percent=self._min_wifi_24_percent,
-                    min_5_percent=self._min_wifi_5_percent,
                 )
                 last_result = result
 
@@ -544,37 +438,14 @@ class FiberhomeTestRunner(TestRunnerBase):
         wifi_info = base_info.get("wifi_info") or {}
         details = {
             "ssid": wifi_info.get("ssid_24ghz") or base_info.get("ssid_24ghz"),
-            "password_unencrypted": wifi_info.get("password_24ghz") or base_info.get("password_24ghz"),
+            "password_unencrypted": (
+                wifi_info.get("password_24ghz") or base_info.get("password_24ghz")
+            ),
             "signal_percent": wifi_scan_result.get("details", {}).get("best_24_percent"),
             "wifi_scan": wifi_scan_result,
         }
 
-        if wifi_scan_result.get("details", {}).get("pass_24"):
-            step = self._adapter.build_test_result(
-                name="wifi_2g",
-                status="PASS",
-                details={**details, "method": "netsh_wlan_scan"},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="WIFI_2G",
-                visual_state="COMPLETED",
-            )
-            log_both(self._logger, logging.INFO, "Resultado WIFI_2G %s: PASS | %s", self._worker_id, step.details)
-            return step
-
-        step = self._adapter.build_test_result(
-            name="wifi_2g",
-            status="FAIL",
-            details=details,
-        )
-        self._supervisor.publish_test_indicator(
-            worker_id=self._worker_id,
-            test_name="WIFI_2G",
-            visual_state="FAIL",
-        )
-        log_both(self._logger, logging.ERROR, "Resultado WIFI_2G %s: FAIL | %s", self._worker_id, step.details)
-        return step
+        return self._evaluator.evaluate_wifi_2g(details=details)
 
     def _run_wifi_5(self, base_info: dict[str, Any], wifi_scan_result: dict[str, Any]):
         self._supervisor.update_worker_phase(
@@ -591,34 +462,11 @@ class FiberhomeTestRunner(TestRunnerBase):
         wifi_info = base_info.get("wifi_info") or {}
         details = {
             "ssid": wifi_info.get("ssid_5ghz") or base_info.get("ssid_5ghz"),
-            "password_unencrypted": wifi_info.get("password_5ghz") or base_info.get("password_5ghz"),
+            "password_unencrypted": (
+                wifi_info.get("password_5ghz") or base_info.get("password_5ghz")
+            ),
             "signal_percent": wifi_scan_result.get("details", {}).get("best_5_percent"),
             "wifi_scan": wifi_scan_result,
         }
 
-        if wifi_scan_result.get("details", {}).get("pass_5"):
-            step = self._adapter.build_test_result(
-                name="wifi_5g",
-                status="PASS",
-                details={**details, "method": "netsh_wlan_scan"},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="WIFI_5G",
-                visual_state="COMPLETED",
-            )
-            log_both(self._logger, logging.INFO, "Resultado WIFI_5G %s: PASS | %s", self._worker_id, step.details)
-            return step
-
-        step = self._adapter.build_test_result(
-            name="wifi_5g",
-            status="FAIL",
-            details=details,
-        )
-        self._supervisor.publish_test_indicator(
-            worker_id=self._worker_id,
-            test_name="WIFI_5G",
-            visual_state="FAIL",
-        )
-        log_both(self._logger, logging.ERROR, "Resultado WIFI_5G %s: FAIL | %s", self._worker_id, step.details)
-        return step
+        return self._evaluator.evaluate_wifi_5g(details=details)
