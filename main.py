@@ -3,94 +3,144 @@ from __future__ import annotations
 import logging
 import sys
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtWidgets import QApplication, QMessageBox
 
-from app.application.event_bus.bus import EventBus
-from app.application.services.station_service import StationService
-from app.infrastructure.config.settings import Settings, load_settings
-from app.infrastructure.logging.logger import (
-    get_logger,
-    log_both,
-    log_console,
-    log_file,
-    setup_logging,
-)
+from app.infrastructure.logging.logger import get_logger, log_both, log_file
+from app.ui.bootstrap_worker import BootstrapWorker
+from app.ui.loading_screen import LoadingScreen
 from app.ui.main_window import MainWindow
-from app.workers.supervisor import Supervisor
 
 
 logger = get_logger(__name__)
 
 
-def initialize_database(settings: Settings) -> None:
-    """
-    Punto de inicialización de base de datos.
-    Por ahora queda como placeholder.
-    """
-    if not settings.database.enabled:
-        log_console(logger, logging.INFO, "Base de datos deshabilitada por configuración.")
-        return
+class StartupController(QObject):
+    request_open_main = Signal(object)
 
-    if not settings.database.init_on_startup:
-        log_console(logger, logging.INFO, "Inicialización de base de datos omitida por configuración.")
-        return
+    def __init__(self, app: QApplication, loading: LoadingScreen) -> None:
+        super().__init__()
+        self._app = app
+        self._loading = loading
+        self._runtime = None
+        self._window: MainWindow | None = None
+        self._bootstrap_thread: QThread | None = None
 
-    log_both(
-        logger,
-        logging.INFO,
-        "Inicialización de BD pendiente. Ruta configurada: %s",
-        settings.database.path,
-    )
+        self.request_open_main.connect(self._open_main_window)
 
+    def set_bootstrap_thread(self, thread: QThread) -> None:
+        self._bootstrap_thread = thread
 
-def bootstrap() -> tuple[Settings, EventBus, Supervisor, StationService]:
-    """
-    Carga configuración e inicializa los componentes base del sistema.
-    """
-    settings = load_settings()
-    setup_logging(settings)
+    @Slot(str, int)
+    def on_progress(self, message: str, value: int) -> None:
+        self._loading.set_progress(message, value)
 
-    log_both(logger, logging.INFO, "Iniciando %s v%s", settings.app.name, settings.app.version)
-    log_console(logger, logging.INFO, "Entorno: %s", settings.app.environment)
-    log_console(logger, logging.INFO, "Máximo de workers: %s", settings.workers.max_workers)
-    log_console(logger, logging.INFO, "Heartbeat: %ss", settings.monitor.heartbeat_interval_s)
+    @Slot(object)
+    def on_finished(self, runtime: object) -> None:
+        log_both(logger, logging.INFO, "Bootstrap terminado correctamente en hilo principal.")
 
-    initialize_database(settings)
+        self._runtime = runtime
 
-    event_bus = EventBus()
-    log_console(logger, logging.INFO, "EventBus inicializado correctamente.")
+        if self._bootstrap_thread is not None:
+            self._bootstrap_thread.quit()
 
-    supervisor = Supervisor(settings=settings, event_bus=event_bus)
-    station_service = StationService(supervisor=supervisor)
+        self.request_open_main.emit(runtime)
 
-    return settings, event_bus, supervisor, station_service
+    @Slot(str)
+    def on_failed(self, error_message: str) -> None:
+        log_both(logger, logging.ERROR, "Bootstrap falló: %s", error_message)
+
+        self._loading.close()
+
+        QMessageBox.critical(
+            None,
+            "Error de inicio",
+            f"No fue posible inicializar la aplicación.\n\n{error_message}",
+        )
+        self._app.quit()
+
+    @Slot(object)
+    def _open_main_window(self, runtime: object) -> None:
+        try:
+            log_both(logger, logging.INFO, "Entrando a _open_main_window() en hilo principal.")
+
+            self._app.setApplicationName(runtime.settings.app.name)
+
+            self._window = MainWindow(
+                settings=runtime.settings,
+                event_bus=runtime.event_bus,
+                station_service=runtime.station_service,
+            )
+
+            def shutdown_runtime() -> None:
+                try:
+                    runtime.station_service.stop_station()
+                except Exception:
+                    log_file(
+                        logger,
+                        logging.ERROR,
+                        "Error al detener station_service al cerrar la app.",
+                        exc_info=True,
+                    )
+                log_both(logger, logging.INFO, "Aplicación finalizada correctamente.")
+
+            self._app.aboutToQuit.connect(shutdown_runtime)
+
+            self._window.show()
+            self._loading.close()
+            self._app.setQuitOnLastWindowClosed(True)
+
+            log_both(logger, logging.INFO, "MainWindow mostrada correctamente.")
+
+        except Exception as exc:
+            log_file(
+                logger,
+                logging.ERROR,
+                "Error abriendo MainWindow.",
+                exc_info=True,
+            )
+            self._loading.close()
+            QMessageBox.critical(
+                None,
+                "Error de inicio",
+                f"No fue posible abrir la ventana principal.\n\n{exc}",
+            )
+            self._app.quit()
 
 
 def run() -> int:
-    """
-    Arranque principal de la aplicación con PySide6.
-    """
-    settings, event_bus, supervisor, station_service = bootstrap()
-
     app = QApplication(sys.argv)
-    app.setApplicationName(settings.app.name)
+    app.setApplicationName("ONT Tester NEXUS")
+    app.setQuitOnLastWindowClosed(False)
 
-    station_service.start_station()
-
-    window = MainWindow(
-        settings=settings,
-        event_bus=event_bus,
-        station_service=station_service,
+    loading = LoadingScreen(
+        image_path="data/assets/loading_logo.png",
+        width=420,
+        height=260,
     )
-    window.show()
+    loading.set_progress("Iniciando...", 0)
+    loading.show()
+    app.processEvents()
 
-    exit_code = app.exec()
+    controller = StartupController(app, loading)
 
-    station_service.stop_station()
-    log_both(logger, logging.INFO, "Aplicación finalizada correctamente.")
+    bootstrap_thread = QThread()
+    bootstrap_worker = BootstrapWorker()
+    bootstrap_worker.moveToThread(bootstrap_thread)
 
-    _ = supervisor
-    return exit_code
+    controller.set_bootstrap_thread(bootstrap_thread)
+
+    bootstrap_worker.progress_changed.connect(controller.on_progress)
+    bootstrap_worker.bootstrap_finished.connect(controller.on_finished)
+    bootstrap_worker.bootstrap_failed.connect(controller.on_failed)
+
+    bootstrap_thread.started.connect(bootstrap_worker.run)
+    bootstrap_thread.finished.connect(bootstrap_worker.deleteLater)
+    bootstrap_thread.finished.connect(bootstrap_thread.deleteLater)
+
+    bootstrap_thread.start()
+
+    return app.exec()
 
 
 def main() -> int:
@@ -100,7 +150,12 @@ def main() -> int:
         log_both(logger, logging.WARNING, "Ejecución interrumpida por el usuario.")
         return 130
     except Exception:
-        log_file(logger, logging.ERROR, "Excepción no controlada en el hilo principal.", exc_info=True)
+        log_file(
+            logger,
+            logging.ERROR,
+            "Excepción no controlada en el hilo principal.",
+            exc_info=True,
+        )
         return 1
 
 
