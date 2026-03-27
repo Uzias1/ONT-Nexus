@@ -2,7 +2,7 @@ from __future__ import annotations
 
 DEFAULT_EXECUTION_TESTS: dict[str, bool] = {
     "factory_reset": False,
-    "software_update": False,
+    "software_update": True,
     "usb": True,
     "fiber_tx": True,
     "fiber_rx": True,

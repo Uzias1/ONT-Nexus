@@ -1,19 +1,14 @@
 from __future__ import annotations
 
+import logging
 import platform
 import re
 import subprocess
 
-from app.infrastructure.logging.logger import get_logger
+from app.infrastructure.logging.logger import get_logger, log_console
 
 
 class ArpScanner:
-    """
-    Servicio simple para extraer la MAC asociada a una IP desde la tabla ARP local.
-
-    Normalmente funciona mejor después de que la IP ya respondió a ping.
-    """
-
     MAC_REGEX = re.compile(r"([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})")
 
     def __init__(self) -> None:
@@ -34,9 +29,17 @@ class ArpScanner:
                 check=False,
                 timeout=2.0,
             )
-
             output = f"{result.stdout}\n{result.stderr}"
             return self._extract_mac(output)
+
+        except subprocess.TimeoutExpired:
+            log_console(
+                self._logger,
+                logging.WARNING,
+                "Timeout consultando ARP para %s.",
+                ip,
+            )
+            return None
 
         except Exception:
             self._logger.exception(
@@ -52,7 +55,6 @@ class ArpScanner:
         if system_name == "windows":
             return ["arp", "-a", ip]
 
-        # Linux / macOS / Unix-like
         return ["arp", "-n", ip]
 
     def _extract_mac(self, text: str) -> str | None:
@@ -60,5 +62,4 @@ class ArpScanner:
         if not match:
             return None
 
-        mac = match.group(0).replace("-", ":").upper()
-        return mac
+        return match.group(0).replace("-", ":").upper()

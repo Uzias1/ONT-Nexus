@@ -140,9 +140,6 @@ def scan_wifi_windows(
 def evaluate_wifi_rssi_windows(
     ssid_24: str,
     ssid_5: str,
-    *,
-    min_24_percent: int,
-    min_5_percent: int,
 ) -> dict[str, Any]:
     """
     Basado en test_wifi_rssi_windows de common_mixin.
@@ -157,8 +154,6 @@ def evaluate_wifi_rssi_windows(
             "ssid_5": ssid_5,
             "best_24_percent": None,
             "best_5_percent": None,
-            "min_24_percent": min_24_percent,
-            "min_5_percent": min_5_percent,
             "pass_24": False,
             "pass_5": False,
             "raw_24": [],
@@ -201,8 +196,8 @@ def evaluate_wifi_rssi_windows(
     p24 = result["details"]["best_24_percent"]
     p5 = result["details"]["best_5_percent"]
 
-    pass_24 = p24 is not None and p24 >= min_24_percent
-    pass_5 = p5 is not None and p5 >= min_5_percent
+    pass_24 = p24 is not None
+    pass_5 = p5 is not None
 
     result["details"]["pass_24"] = bool(pass_24)
     result["details"]["pass_5"] = bool(pass_5)

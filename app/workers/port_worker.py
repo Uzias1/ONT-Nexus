@@ -9,6 +9,7 @@ from app.application.dto.execution_test_request import ExecutionTestRequest
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.logging.logger import get_logger, log_both, log_console
 from app.infrastructure.vendors.fiberhome.fiberhome_test_runner import FiberhomeTestRunner
+from app.infrastructure.network.ping_service import PingService
 
 if TYPE_CHECKING:
     from app.workers.supervisor import Supervisor
@@ -19,8 +20,6 @@ class PortWorker:
     Worker de ejecución para una estación lógica específica.
 
     Ejecuta el plan de pruebas habilitado en ExecutionTestRequest.
-    Por ahora deja lista la estructura completa de ejecución, aunque
-    la implementación real de cada prueba se agregará después.
     """
 
     def __init__(
@@ -29,11 +28,13 @@ class PortWorker:
         settings: Settings,
         supervisor: Supervisor,
         worker_id: str,
+        ping_service: PingService,
         request: ExecutionTestRequest,
     ) -> None:
         self._settings = settings
         self._supervisor = supervisor
         self._worker_id = worker_id
+        self._ping_service = ping_service
         self._request = request
         self._logger = get_logger(f"{self.__class__.__name__}.{worker_id}")
 
@@ -131,6 +132,7 @@ class PortWorker:
                     settings=self._settings,
                     supervisor=self._supervisor,
                     worker_id=self._worker_id,
+                    ping_service=self._ping_service,
                 )
                 execution_result = runner.run(self._request)
 

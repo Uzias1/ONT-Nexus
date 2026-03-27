@@ -58,6 +58,7 @@ class StationEntryConfig:
     port_index: int
     expected_ip: str
 
+
 @dataclass(slots=True)
 class SeleniumConfig:
     browser: str
@@ -70,10 +71,36 @@ class SeleniumConfig:
     chrome_binary_path: str | None
     chromedriver_path: str | None
 
+
 @dataclass(slots=True)
 class AutoExecutionConfig:
     enabled: bool
     trigger_on_connect: bool
+
+
+@dataclass(slots=True)
+class WifiConfing:
+    scan_retries: int
+    scan_retry_delay_s: float
+    stabilization_delay_s: float
+
+
+@dataclass(slots=True)
+class PathsConfig:
+    bins_root: str
+
+
+@dataclass(slots=True)
+class SoftwareUpdateConfig:
+    enabled: bool
+    max_login_retries: int
+    login_retry_delay_s: float
+    post_upload_delay_s: float
+    reboot_wait_down_s: int
+    ping_return_timeout_s: int
+    post_reboot_stabilization_s: float
+    vendors: dict[str, dict[str, Any]] = field(default_factory=dict)
+
 
 @dataclass(slots=True)
 class Settings:
@@ -85,7 +112,11 @@ class Settings:
     database: DatabaseConfig
     selenium: SeleniumConfig
     auto_execution: AutoExecutionConfig
+    wifi: WifiConfing
+    paths: PathsConfig
+    software_update: SoftwareUpdateConfig
     station_map: list[StationEntryConfig] = field(default_factory=list)
+
 
 def _read_yaml_file(file_path: Path) -> dict[str, Any]:
     if not file_path.exists():
@@ -145,6 +176,9 @@ def _build_settings(
     database_section = app_data.get("database", {})
     selenium_section = app_data.get("selenium", {})
     auto_execution_section = app_data.get("auto_execution", {})
+    wifi_section = app_data.get("wifi", {})
+    paths_section = app_data.get("paths", {})
+    software_update_section = app_data.get("software_update", {})
     station_map = _build_station_map(station_map_data)
 
     return Settings(
@@ -190,6 +224,26 @@ def _build_settings(
         auto_execution=AutoExecutionConfig(
             enabled=bool(auto_execution_section.get("enabled", True)),
             trigger_on_connect=bool(auto_execution_section.get("trigger_on_connect", True)),
+        ),
+        wifi=WifiConfing(
+            scan_retries=int(wifi_section.get("scan_retries", 3)),
+            scan_retry_delay_s=float(wifi_section.get("scan_retry_delay_s", 4)),
+            stabilization_delay_s=float(wifi_section.get("stabilization_delay_s", 3)),
+        ),
+        paths=PathsConfig(
+            bins_root=str(paths_section.get("bins_root", "C:/ONT-NEXUS/bins")),
+        ),
+        software_update=SoftwareUpdateConfig(
+            enabled=bool(software_update_section.get("enabled", True)),
+            max_login_retries=int(software_update_section.get("max_login_retries", 5)),
+            login_retry_delay_s=float(software_update_section.get("login_retry_delay_s", 10.0)),
+            post_upload_delay_s=float(software_update_section.get("post_upload_delay_s", 2.0)),
+            reboot_wait_down_s=int(software_update_section.get("reboot_wait_down_s", 120)),
+            ping_return_timeout_s=int(software_update_section.get("ping_return_timeout_s", 300)),
+            post_reboot_stabilization_s=float(
+                software_update_section.get("post_reboot_stabilization_s", 20.0)
+            ),
+            vendors=dict(software_update_section.get("vendors", {})),
         ),
         station_map=station_map,
     )

@@ -295,12 +295,22 @@ class MainWindow(QMainWindow):
         port.device_ip = snapshot.get("device_ip")
         port.device_mac = snapshot.get("device_mac") or snapshot.get("mac")
 
-        # Solo recalculamos conectividad base y fase si no hay modo global activo
+        # Si el backend ya reseteó el slot, limpiamos todo el estado visual local
+        if (
+            port.status == "IDLE"
+            and port.phase == "WAITING"
+            and not port.connected
+        ):
+            port.global_mode = None
+            port.circle_states = ["IDLE"] * 8
+            port.circle_states[0] = "OFFLINE"
+            return
+
         self._apply_base_states(port)
 
     def _apply_base_states(self, port: PortUiState) -> None:
         # El primer círculo siempre refleja conectividad
-        port.circle_states[0] = "RUNNING" if port.connected else "OFFLINE"
+        port.circle_states[0] = "PASS" if port.connected else "OFFLINE"
 
         # Si el slot terminó en FAIL y hay fase conocida, pintar esa fase en rojo
         if port.status in {"FAIL", "ERROR"}:
@@ -312,7 +322,7 @@ class MainWindow(QMainWindow):
         states = ["IDLE"] * 8
 
         # Indicador de conectividad / ping
-        states[0] = "RUNNING" if connected else "OFFLINE"
+        states[0] = "PASS" if connected else "OFFLINE"
 
         if status in {"FAIL", "ERROR"}:
             phase_index = PHASE_TO_INDEX.get(phase)

@@ -40,3 +40,30 @@ selenium:
 auto_execution:
   enabled: true
   trigger_on_connect: true
+
+wifi:
+  scan_retries: 15
+  scan_retry_delay_s: 2
+  stabilization_delay_s: 8
+
+paths:
+  bins_root: "C:/ONT-NEXUS/bins"
+
+software_update:
+  enabled: true
+  max_login_retries: 5
+  login_retry_delay_s: 10
+  post_upload_delay_s: 2
+  reboot_wait_down_s: 120
+  ping_return_timeout_s: 300
+  post_reboot_stabilization_s: 60
+  vendors:
+    fiberhome:
+      superuser_username: "admin"
+      superuser_password: "z#Wh46QN@52Rm%j5"
+      models:
+        MOD001: "fiberhome/HG6145F"
+        MOD008: "fiberhome/HG6145F1"
+      aliases:
+        HG6145F: "MOD001"
+        HG6145F1: "MOD008"
