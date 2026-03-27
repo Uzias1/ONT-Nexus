@@ -1,0 +1,1170 @@
+{
+  "parametros": {
+    "porcentaje_minimo_aceptacion_wifi": 80,
+    "valor_minimo_tx": -8.0,
+    "valor_maximo_tx": 3.0,
+    "valor_minimo_rx": -27.0,
+    "valor_maximo_rx": -8.0,
+    "ultima_modificacion": "2026-02-28 14:00:00"
+  },
+  "modelos": [
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V1R001C10S100",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V2R002C11S101",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V3R003C12S102",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V4R004C13S103",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V5R005C14S104",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V6R006C10S105",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V7R007C11S106",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V1R008C12S107",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V2R009C13S108",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V3R010C14S109",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V4R011C10S110",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V5R012C11S111",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V6R013C12S112",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V7R014C13S113",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V1R015C14S114",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V2R016C10S115",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V3R017C11S116",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V4R018C12S117",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V5R019C13S118",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V6R020C14S119",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V7R021C10S120",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V1R022C11S121",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V2R023C12S122",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V3R024C13S123",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V4R025C14S124",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V5R026C10S125",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V6R027C11S126",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V7R028C12S127",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V1R029C13S128",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V2R030C14S129",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V3R001C10S130",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V4R002C11S131",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V5R003C12S132",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V6R004C13S133",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V7R005C14S134",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V1R006C10S135",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V2R007C11S136",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V3R008C12S137",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V4R009C13S138",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V5R010C14S139",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V6R011C10S140",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V7R012C11S141",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V1R013C12S142",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V2R014C13S143",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V3R015C14S144",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V4R016C10S145",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V5R017C11S146",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V6R018C12S147",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V7R019C13S148",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V1R020C14S149",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V2R021C10S150",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V3R022C11S151",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V4R023C12S152",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V5R024C13S153",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "HG6145F1",
+      "version_software": "V6R025C14S154",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG6145F2",
+      "version_software": "V7R026C10S155",
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "nombre": "HG8145V5",
+      "version_software": "V1R027C11S156",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "HG8245Q2",
+      "version_software": "V2R028C12S157",
+      "fabricante": "HUAWEI"
+    },
+    {
+      "nombre": "F670L",
+      "version_software": "V3R029C13S158",
+      "fabricante": "ZTE"
+    },
+    {
+      "nombre": "F6600",
+      "version_software": "V4R030C14S159",
+      "fabricante": "ZTE"
+    }
+  ],
+  "fabricantes": [
+    {
+      "numero_fila": 1,
+      "fabricante": "FIBERHOME"
+    },
+    {
+      "numero_fila": 2,
+      "fabricante": "HUAWEI"
+    },
+    {
+      "numero_fila": 3,
+      "fabricante": "ZTE"
+    }
+  ],
+  "puertos": [
+    {
+      "numero_puerto": 1,
+      "ip_asignada": "192.168.100.10"
+    },
+    {
+      "numero_puerto": 2,
+      "ip_asignada": "192.168.100.11"
+    },
+    {
+      "numero_puerto": 3,
+      "ip_asignada": "192.168.100.12"
+    },
+    {
+      "numero_puerto": 4,
+      "ip_asignada": "192.168.100.13"
+    },
+    {
+      "numero_puerto": 5,
+      "ip_asignada": "192.168.100.14"
+    },
+    {
+      "numero_puerto": 6,
+      "ip_asignada": "192.168.100.15"
+    },
+    {
+      "numero_puerto": 7,
+      "ip_asignada": "192.168.100.16"
+    },
+    {
+      "numero_puerto": 8,
+      "ip_asignada": "192.168.100.17"
+    },
+    {
+      "numero_puerto": 9,
+      "ip_asignada": "192.168.100.18"
+    },
+    {
+      "numero_puerto": 10,
+      "ip_asignada": "192.168.100.19"
+    },
+    {
+      "numero_puerto": 11,
+      "ip_asignada": "192.168.100.20"
+    },
+    {
+      "numero_puerto": 12,
+      "ip_asignada": "192.168.100.21"
+    },
+    {
+      "numero_puerto": 13,
+      "ip_asignada": "192.168.100.22"
+    },
+    {
+      "numero_puerto": 14,
+      "ip_asignada": "192.168.100.23"
+    },
+    {
+      "numero_puerto": 15,
+      "ip_asignada": "192.168.100.24"
+    },
+    {
+      "numero_puerto": 16,
+      "ip_asignada": "192.168.100.25"
+    },
+    {
+      "numero_puerto": 17,
+      "ip_asignada": "192.168.100.26"
+    },
+    {
+      "numero_puerto": 18,
+      "ip_asignada": "192.168.100.27"
+    },
+    {
+      "numero_puerto": 19,
+      "ip_asignada": "192.168.100.28"
+    },
+    {
+      "numero_puerto": 20,
+      "ip_asignada": "192.168.100.29"
+    },
+    {
+      "numero_puerto": 21,
+      "ip_asignada": "192.168.100.30"
+    },
+    {
+      "numero_puerto": 22,
+      "ip_asignada": "192.168.100.31"
+    },
+    {
+      "numero_puerto": 23,
+      "ip_asignada": "192.168.100.32"
+    },
+    {
+      "numero_puerto": 24,
+      "ip_asignada": "192.168.100.33"
+    },
+    {
+      "numero_puerto": 25,
+      "ip_asignada": "192.168.100.34"
+    },
+    {
+      "numero_puerto": 26,
+      "ip_asignada": "192.168.100.35"
+    },
+    {
+      "numero_puerto": 27,
+      "ip_asignada": "192.168.100.36"
+    },
+    {
+      "numero_puerto": 28,
+      "ip_asignada": "192.168.100.37"
+    },
+    {
+      "numero_puerto": 29,
+      "ip_asignada": "192.168.100.38"
+    },
+    {
+      "numero_puerto": 30,
+      "ip_asignada": "192.168.100.39"
+    },
+    {
+      "numero_puerto": 31,
+      "ip_asignada": "192.168.100.40"
+    },
+    {
+      "numero_puerto": 32,
+      "ip_asignada": "192.168.100.41"
+    },
+    {
+      "numero_puerto": 33,
+      "ip_asignada": "192.168.100.42"
+    },
+    {
+      "numero_puerto": 34,
+      "ip_asignada": "192.168.100.43"
+    },
+    {
+      "numero_puerto": 35,
+      "ip_asignada": "192.168.100.44"
+    },
+    {
+      "numero_puerto": 36,
+      "ip_asignada": "192.168.100.45"
+    },
+    {
+      "numero_puerto": 37,
+      "ip_asignada": "192.168.100.46"
+    },
+    {
+      "numero_puerto": 38,
+      "ip_asignada": "192.168.100.47"
+    },
+    {
+      "numero_puerto": 39,
+      "ip_asignada": "192.168.100.48"
+    },
+    {
+      "numero_puerto": 40,
+      "ip_asignada": "192.168.100.49"
+    },
+    {
+      "numero_puerto": 41,
+      "ip_asignada": "192.168.100.50"
+    },
+    {
+      "numero_puerto": 42,
+      "ip_asignada": "192.168.100.51"
+    },
+    {
+      "numero_puerto": 43,
+      "ip_asignada": "192.168.100.52"
+    },
+    {
+      "numero_puerto": 44,
+      "ip_asignada": "192.168.100.53"
+    },
+    {
+      "numero_puerto": 45,
+      "ip_asignada": "192.168.100.54"
+    },
+    {
+      "numero_puerto": 46,
+      "ip_asignada": "192.168.100.55"
+    },
+    {
+      "numero_puerto": 47,
+      "ip_asignada": "192.168.100.56"
+    },
+    {
+      "numero_puerto": 48,
+      "ip_asignada": "192.168.100.57"
+    },
+    {
+      "numero_puerto": 49,
+      "ip_asignada": "192.168.100.58"
+    },
+    {
+      "numero_puerto": 50,
+      "ip_asignada": "192.168.100.59"
+    },
+    {
+      "numero_puerto": 51,
+      "ip_asignada": "192.168.100.60"
+    },
+    {
+      "numero_puerto": 52,
+      "ip_asignada": "192.168.100.61"
+    },
+    {
+      "numero_puerto": 53,
+      "ip_asignada": "192.168.100.62"
+    },
+    {
+      "numero_puerto": 54,
+      "ip_asignada": "192.168.100.63"
+    },
+    {
+      "numero_puerto": 55,
+      "ip_asignada": "192.168.100.64"
+    },
+    {
+      "numero_puerto": 56,
+      "ip_asignada": "192.168.100.65"
+    },
+    {
+      "numero_puerto": 57,
+      "ip_asignada": "192.168.100.66"
+    },
+    {
+      "numero_puerto": 58,
+      "ip_asignada": "192.168.100.67"
+    },
+    {
+      "numero_puerto": 59,
+      "ip_asignada": "192.168.100.68"
+    },
+    {
+      "numero_puerto": 60,
+      "ip_asignada": "192.168.100.69"
+    }
+  ],
+  "resultados_base_datos": [
+    {
+      "id": 1,
+      "id_modelos": 1,
+      "id_settings": 1,
+      "id_puertos": 1,
+      "id_pruebas": 1001,
+      "timestamp": "2026-03-01 08:03:00",
+      "sn": "SN000001",
+      "mac": "AA:BB:CC:00:00:01"
+    },
+    {
+      "id": 2,
+      "id_modelos": 2,
+      "id_settings": 2,
+      "id_puertos": 2,
+      "id_pruebas": 1002,
+      "timestamp": "2026-03-01 09:06:00",
+      "sn": "SN000002",
+      "mac": "AA:BB:CC:00:00:02"
+    },
+    {
+      "id": 3,
+      "id_modelos": 3,
+      "id_settings": 3,
+      "id_puertos": 3,
+      "id_pruebas": 1003,
+      "timestamp": "2026-03-01 10:09:00",
+      "sn": "SN000003",
+      "mac": "AA:BB:CC:00:00:03"
+    },
+    {
+      "id": 4,
+      "id_modelos": 4,
+      "id_settings": 4,
+      "id_puertos": 4,
+      "id_pruebas": 1004,
+      "timestamp": "2026-03-01 11:12:00",
+      "sn": "SN000004",
+      "mac": "AA:BB:CC:00:00:04"
+    },
+    {
+      "id": 5,
+      "id_modelos": 5,
+      "id_settings": 5,
+      "id_puertos": 5,
+      "id_pruebas": 1005,
+      "timestamp": "2026-03-01 12:15:00",
+      "sn": "SN000005",
+      "mac": "AA:BB:CC:00:00:05"
+    },
+    {
+      "id": 6,
+      "id_modelos": 6,
+      "id_settings": 1,
+      "id_puertos": 6,
+      "id_pruebas": 1006,
+      "timestamp": "2026-03-01 13:18:00",
+      "sn": "SN000006",
+      "mac": "AA:BB:CC:00:00:06"
+    },
+    {
+      "id": 7,
+      "id_modelos": 7,
+      "id_settings": 2,
+      "id_puertos": 7,
+      "id_pruebas": 1007,
+      "timestamp": "2026-03-02 08:21:00",
+      "sn": "SN000007",
+      "mac": "AA:BB:CC:00:00:07"
+    },
+    {
+      "id": 8,
+      "id_modelos": 8,
+      "id_settings": 3,
+      "id_puertos": 8,
+      "id_pruebas": 1008,
+      "timestamp": "2026-03-02 09:24:00",
+      "sn": "SN000008",
+      "mac": "AA:BB:CC:00:00:08"
+    },
+    {
+      "id": 9,
+      "id_modelos": 9,
+      "id_settings": 4,
+      "id_puertos": 9,
+      "id_pruebas": 1009,
+      "timestamp": "2026-03-02 10:27:00",
+      "sn": "SN000009",
+      "mac": "AA:BB:CC:00:00:09"
+    },
+    {
+      "id": 10,
+      "id_modelos": 10,
+      "id_settings": 5,
+      "id_puertos": 10,
+      "id_pruebas": 1010,
+      "timestamp": "2026-03-02 11:30:00",
+      "sn": "SN000010",
+      "mac": "AA:BB:CC:00:00:0A"
+    },
+    {
+      "id": 11,
+      "id_modelos": 11,
+      "id_settings": 1,
+      "id_puertos": 11,
+      "id_pruebas": 1011,
+      "timestamp": "2026-03-02 12:33:00",
+      "sn": "SN000011",
+      "mac": "AA:BB:CC:00:00:0B"
+    },
+    {
+      "id": 12,
+      "id_modelos": 12,
+      "id_settings": 2,
+      "id_puertos": 12,
+      "id_pruebas": 1012,
+      "timestamp": "2026-03-02 13:36:00",
+      "sn": "SN000012",
+      "mac": "AA:BB:CC:00:00:0C"
+    },
+    {
+      "id": 13,
+      "id_modelos": 13,
+      "id_settings": 3,
+      "id_puertos": 13,
+      "id_pruebas": 1013,
+      "timestamp": "2026-03-03 08:39:00",
+      "sn": "SN000013",
+      "mac": "AA:BB:CC:00:00:0D"
+    },
+    {
+      "id": 14,
+      "id_modelos": 14,
+      "id_settings": 4,
+      "id_puertos": 14,
+      "id_pruebas": 1014,
+      "timestamp": "2026-03-03 09:42:00",
+      "sn": "SN000014",
+      "mac": "AA:BB:CC:00:00:0E"
+    },
+    {
+      "id": 15,
+      "id_modelos": 15,
+      "id_settings": 5,
+      "id_puertos": 15,
+      "id_pruebas": 1015,
+      "timestamp": "2026-03-03 10:45:00",
+      "sn": "SN000015",
+      "mac": "AA:BB:CC:00:00:0F"
+    },
+    {
+      "id": 16,
+      "id_modelos": 16,
+      "id_settings": 1,
+      "id_puertos": 16,
+      "id_pruebas": 1016,
+      "timestamp": "2026-03-03 11:48:00",
+      "sn": "SN000016",
+      "mac": "AA:BB:CC:00:01:10"
+    },
+    {
+      "id": 17,
+      "id_modelos": 17,
+      "id_settings": 2,
+      "id_puertos": 17,
+      "id_pruebas": 1017,
+      "timestamp": "2026-03-03 12:51:00",
+      "sn": "SN000017",
+      "mac": "AA:BB:CC:00:01:11"
+    },
+    {
+      "id": 18,
+      "id_modelos": 18,
+      "id_settings": 3,
+      "id_puertos": 18,
+      "id_pruebas": 1018,
+      "timestamp": "2026-03-03 13:54:00",
+      "sn": "SN000018",
+      "mac": "AA:BB:CC:00:01:12"
+    },
+    {
+      "id": 19,
+      "id_modelos": 19,
+      "id_settings": 4,
+      "id_puertos": 19,
+      "id_pruebas": 1019,
+      "timestamp": "2026-03-04 08:57:00",
+      "sn": "SN000019",
+      "mac": "AA:BB:CC:00:01:13"
+    },
+    {
+      "id": 20,
+      "id_modelos": 20,
+      "id_settings": 5,
+      "id_puertos": 20,
+      "id_pruebas": 1020,
+      "timestamp": "2026-03-04 09:00:00",
+      "sn": "SN000020",
+      "mac": "AA:BB:CC:00:01:14"
+    },
+    {
+      "id": 21,
+      "id_modelos": 21,
+      "id_settings": 1,
+      "id_puertos": 21,
+      "id_pruebas": 1021,
+      "timestamp": "2026-03-04 10:03:00",
+      "sn": "SN000021",
+      "mac": "AA:BB:CC:00:01:15"
+    },
+    {
+      "id": 22,
+      "id_modelos": 22,
+      "id_settings": 2,
+      "id_puertos": 22,
+      "id_pruebas": 1022,
+      "timestamp": "2026-03-04 11:06:00",
+      "sn": "SN000022",
+      "mac": "AA:BB:CC:00:01:16"
+    },
+    {
+      "id": 23,
+      "id_modelos": 23,
+      "id_settings": 3,
+      "id_puertos": 23,
+      "id_pruebas": 1023,
+      "timestamp": "2026-03-04 12:09:00",
+      "sn": "SN000023",
+      "mac": "AA:BB:CC:00:01:17"
+    },
+    {
+      "id": 24,
+      "id_modelos": 24,
+      "id_settings": 4,
+      "id_puertos": 24,
+      "id_pruebas": 1024,
+      "timestamp": "2026-03-04 13:12:00",
+      "sn": "SN000024",
+      "mac": "AA:BB:CC:00:01:18"
+    },
+    {
+      "id": 25,
+      "id_modelos": 25,
+      "id_settings": 5,
+      "id_puertos": 25,
+      "id_pruebas": 1025,
+      "timestamp": "2026-03-05 08:15:00",
+      "sn": "SN000025",
+      "mac": "AA:BB:CC:00:01:19"
+    },
+    {
+      "id": 26,
+      "id_modelos": 26,
+      "id_settings": 1,
+      "id_puertos": 26,
+      "id_pruebas": 1026,
+      "timestamp": "2026-03-05 09:18:00",
+      "sn": "SN000026",
+      "mac": "AA:BB:CC:00:01:1A"
+    },
+    {
+      "id": 27,
+      "id_modelos": 27,
+      "id_settings": 2,
+      "id_puertos": 27,
+      "id_pruebas": 1027,
+      "timestamp": "2026-03-05 10:21:00",
+      "sn": "SN000027",
+      "mac": "AA:BB:CC:00:01:1B"
+    },
+    {
+      "id": 28,
+      "id_modelos": 28,
+      "id_settings": 3,
+      "id_puertos": 28,
+      "id_pruebas": 1028,
+      "timestamp": "2026-03-05 11:24:00",
+      "sn": "SN000028",
+      "mac": "AA:BB:CC:00:01:1C"
+    },
+    {
+      "id": 29,
+      "id_modelos": 29,
+      "id_settings": 4,
+      "id_puertos": 29,
+      "id_pruebas": 1029,
+      "timestamp": "2026-03-05 12:27:00",
+      "sn": "SN000029",
+      "mac": "AA:BB:CC:00:01:1D"
+    },
+    {
+      "id": 30,
+      "id_modelos": 30,
+      "id_settings": 5,
+      "id_puertos": 30,
+      "id_pruebas": 1030,
+      "timestamp": "2026-03-05 13:30:00",
+      "sn": "SN000030",
+      "mac": "AA:BB:CC:00:01:1E"
+    },
+    {
+      "id": 31,
+      "id_modelos": 31,
+      "id_settings": 1,
+      "id_puertos": 31,
+      "id_pruebas": 1031,
+      "timestamp": "2026-03-06 08:33:00",
+      "sn": "SN000031",
+      "mac": "AA:BB:CC:00:01:1F"
+    },
+    {
+      "id": 32,
+      "id_modelos": 32,
+      "id_settings": 2,
+      "id_puertos": 32,
+      "id_pruebas": 1032,
+      "timestamp": "2026-03-06 09:36:00",
+      "sn": "SN000032",
+      "mac": "AA:BB:CC:00:02:20"
+    },
+    {
+      "id": 33,
+      "id_modelos": 33,
+      "id_settings": 3,
+      "id_puertos": 33,
+      "id_pruebas": 1033,
+      "timestamp": "2026-03-06 10:39:00",
+      "sn": "SN000033",
+      "mac": "AA:BB:CC:00:02:21"
+    },
+    {
+      "id": 34,
+      "id_modelos": 34,
+      "id_settings": 4,
+      "id_puertos": 34,
+      "id_pruebas": 1034,
+      "timestamp": "2026-03-06 11:42:00",
+      "sn": "SN000034",
+      "mac": "AA:BB:CC:00:02:22"
+    },
+    {
+      "id": 35,
+      "id_modelos": 35,
+      "id_settings": 5,
+      "id_puertos": 35,
+      "id_pruebas": 1035,
+      "timestamp": "2026-03-06 12:45:00",
+      "sn": "SN000035",
+      "mac": "AA:BB:CC:00:02:23"
+    },
+    {
+      "id": 36,
+      "id_modelos": 36,
+      "id_settings": 1,
+      "id_puertos": 36,
+      "id_pruebas": 1036,
+      "timestamp": "2026-03-06 13:48:00",
+      "sn": "SN000036",
+      "mac": "AA:BB:CC:00:02:24"
+    },
+    {
+      "id": 37,
+      "id_modelos": 37,
+      "id_settings": 2,
+      "id_puertos": 37,
+      "id_pruebas": 1037,
+      "timestamp": "2026-03-07 08:51:00",
+      "sn": "SN000037",
+      "mac": "AA:BB:CC:00:02:25"
+    },
+    {
+      "id": 38,
+      "id_modelos": 38,
+      "id_settings": 3,
+      "id_puertos": 38,
+      "id_pruebas": 1038,
+      "timestamp": "2026-03-07 09:54:00",
+      "sn": "SN000038",
+      "mac": "AA:BB:CC:00:02:26"
+    },
+    {
+      "id": 39,
+      "id_modelos": 39,
+      "id_settings": 4,
+      "id_puertos": 39,
+      "id_pruebas": 1039,
+      "timestamp": "2026-03-07 10:57:00",
+      "sn": "SN000039",
+      "mac": "AA:BB:CC:00:02:27"
+    },
+    {
+      "id": 40,
+      "id_modelos": 40,
+      "id_settings": 5,
+      "id_puertos": 40,
+      "id_pruebas": 1040,
+      "timestamp": "2026-03-07 11:00:00",
+      "sn": "SN000040",
+      "mac": "AA:BB:CC:00:02:28"
+    },
+    {
+      "id": 41,
+      "id_modelos": 41,
+      "id_settings": 1,
+      "id_puertos": 41,
+      "id_pruebas": 1041,
+      "timestamp": "2026-03-07 12:03:00",
+      "sn": "SN000041",
+      "mac": "AA:BB:CC:00:02:29"
+    },
+    {
+      "id": 42,
+      "id_modelos": 42,
+      "id_settings": 2,
+      "id_puertos": 42,
+      "id_pruebas": 1042,
+      "timestamp": "2026-03-07 13:06:00",
+      "sn": "SN000042",
+      "mac": "AA:BB:CC:00:02:2A"
+    },
+    {
+      "id": 43,
+      "id_modelos": 43,
+      "id_settings": 3,
+      "id_puertos": 43,
+      "id_pruebas": 1043,
+      "timestamp": "2026-03-08 08:09:00",
+      "sn": "SN000043",
+      "mac": "AA:BB:CC:00:02:2B"
+    },
+    {
+      "id": 44,
+      "id_modelos": 44,
+      "id_settings": 4,
+      "id_puertos": 44,
+      "id_pruebas": 1044,
+      "timestamp": "2026-03-08 09:12:00",
+      "sn": "SN000044",
+      "mac": "AA:BB:CC:00:02:2C"
+    },
+    {
+      "id": 45,
+      "id_modelos": 45,
+      "id_settings": 5,
+      "id_puertos": 45,
+      "id_pruebas": 1045,
+      "timestamp": "2026-03-08 10:15:00",
+      "sn": "SN000045",
+      "mac": "AA:BB:CC:00:02:2D"
+    },
+    {
+      "id": 46,
+      "id_modelos": 46,
+      "id_settings": 1,
+      "id_puertos": 46,
+      "id_pruebas": 1046,
+      "timestamp": "2026-03-08 11:18:00",
+      "sn": "SN000046",
+      "mac": "AA:BB:CC:00:02:2E"
+    },
+    {
+      "id": 47,
+      "id_modelos": 47,
+      "id_settings": 2,
+      "id_puertos": 47,
+      "id_pruebas": 1047,
+      "timestamp": "2026-03-08 12:21:00",
+      "sn": "SN000047",
+      "mac": "AA:BB:CC:00:02:2F"
+    },
+    {
+      "id": 48,
+      "id_modelos": 48,
+      "id_settings": 3,
+      "id_puertos": 48,
+      "id_pruebas": 1048,
+      "timestamp": "2026-03-08 13:24:00",
+      "sn": "SN000048",
+      "mac": "AA:BB:CC:00:03:30"
+    },
+    {
+      "id": 49,
+      "id_modelos": 49,
+      "id_settings": 4,
+      "id_puertos": 49,
+      "id_pruebas": 1049,
+      "timestamp": "2026-03-09 08:27:00",
+      "sn": "SN000049",
+      "mac": "AA:BB:CC:00:03:31"
+    },
+    {
+      "id": 50,
+      "id_modelos": 50,
+      "id_settings": 5,
+      "id_puertos": 50,
+      "id_pruebas": 1050,
+      "timestamp": "2026-03-09 09:30:00",
+      "sn": "SN000050",
+      "mac": "AA:BB:CC:00:03:32"
+    },
+    {
+      "id": 51,
+      "id_modelos": 51,
+      "id_settings": 1,
+      "id_puertos": 51,
+      "id_pruebas": 1051,
+      "timestamp": "2026-03-09 10:33:00",
+      "sn": "SN000051",
+      "mac": "AA:BB:CC:00:03:33"
+    },
+    {
+      "id": 52,
+      "id_modelos": 52,
+      "id_settings": 2,
+      "id_puertos": 52,
+      "id_pruebas": 1052,
+      "timestamp": "2026-03-09 11:36:00",
+      "sn": "SN000052",
+      "mac": "AA:BB:CC:00:03:34"
+    },
+    {
+      "id": 53,
+      "id_modelos": 53,
+      "id_settings": 3,
+      "id_puertos": 53,
+      "id_pruebas": 1053,
+      "timestamp": "2026-03-09 12:39:00",
+      "sn": "SN000053",
+      "mac": "AA:BB:CC:00:03:35"
+    },
+    {
+      "id": 54,
+      "id_modelos": 54,
+      "id_settings": 4,
+      "id_puertos": 54,
+      "id_pruebas": 1054,
+      "timestamp": "2026-03-09 13:42:00",
+      "sn": "SN000054",
+      "mac": "AA:BB:CC:00:03:36"
+    },
+    {
+      "id": 55,
+      "id_modelos": 55,
+      "id_settings": 5,
+      "id_puertos": 55,
+      "id_pruebas": 1055,
+      "timestamp": "2026-03-10 08:45:00",
+      "sn": "SN000055",
+      "mac": "AA:BB:CC:00:03:37"
+    },
+    {
+      "id": 56,
+      "id_modelos": 56,
+      "id_settings": 1,
+      "id_puertos": 56,
+      "id_pruebas": 1056,
+      "timestamp": "2026-03-10 09:48:00",
+      "sn": "SN000056",
+      "mac": "AA:BB:CC:00:03:38"
+    },
+    {
+      "id": 57,
+      "id_modelos": 57,
+      "id_settings": 2,
+      "id_puertos": 57,
+      "id_pruebas": 1057,
+      "timestamp": "2026-03-10 10:51:00",
+      "sn": "SN000057",
+      "mac": "AA:BB:CC:00:03:39"
+    },
+    {
+      "id": 58,
+      "id_modelos": 58,
+      "id_settings": 3,
+      "id_puertos": 58,
+      "id_pruebas": 1058,
+      "timestamp": "2026-03-10 11:54:00",
+      "sn": "SN000058",
+      "mac": "AA:BB:CC:00:03:3A"
+    },
+    {
+      "id": 59,
+      "id_modelos": 59,
+      "id_settings": 4,
+      "id_puertos": 59,
+      "id_pruebas": 1059,
+      "timestamp": "2026-03-10 12:57:00",
+      "sn": "SN000059",
+      "mac": "AA:BB:CC:00:03:3B"
+    },
+    {
+      "id": 60,
+      "id_modelos": 60,
+      "id_settings": 5,
+      "id_puertos": 60,
+      "id_pruebas": 1060,
+      "timestamp": "2026-03-10 13:00:00",
+      "sn": "SN000060",
+      "mac": "AA:BB:CC:00:03:3C"
+    }
+  ]
+}

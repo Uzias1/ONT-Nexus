@@ -1,35 +1,21 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
+from pathlib import Path
+import logging
 
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import (
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QMainWindow, QStackedWidget
 
 from app.application.event_bus.bus import EventBus
 from app.application.services.station_service import StationService
 from app.infrastructure.config.settings import Settings
-from app.shared.constants import build_default_execution_request
-
-
-TEST_LABELS = [
-    "PING",
-    "FACTORY RESET",
-    "SOFTWARE UPDATE",
-    "USB",
-    "FIBER TX",
-    "FIBER RX",
-    "WIFI 2.4",
-    "WIFI 5.0",
-]
+from app.infrastructure.logging.logger import get_logger, log_both, log_console
+from app.ui.theme_manager import ThemeManager
+from app.ui.views.dashboard_view import DashboardView
+from app.ui.views.modificar import ModificarView
+from app.ui.views.testeo import TesteoView
+from app.ui.views.reportes import ReportesView
+from app.application.dto.execution_test_request import ExecutionTestRequest
 
 PHASE_TO_INDEX = {
     "FACTORY_RESET": 1,
@@ -45,105 +31,18 @@ PHASE_TO_INDEX = {
 @dataclass(slots=True)
 class PortUiState:
     worker_id: str
+    port_index: int | None = None
     connected: bool = False
     status: str = "IDLE"
     phase: str = "WAITING"
     expected_ip: str | None = None
     device_ip: str | None = None
     device_mac: str | None = None
+    device_sn: str | None = None
+    vendor: str | None = None
+    model: str | None = None
     global_mode: str | None = None
     circle_states: list[str] = field(default_factory=lambda: ["IDLE"] * 8)
-
-
-class StatusCircle(QWidget):
-    def __init__(self, label: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._label = label
-        self._state = "IDLE"
-        self.setMinimumSize(105, 95)
-
-    def set_state(self, state: str) -> None:
-        self._state = state
-        self.update()
-
-    def paintEvent(self, event) -> None:  # noqa: N802
-        _ = event
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-
-        rect = self.rect()
-        diameter = 32
-        x = (rect.width() - diameter) // 2
-        y = 8
-
-        painter.setPen(QPen(Qt.GlobalColor.black, 1))
-        painter.setBrush(self._map_color(self._state))
-        painter.drawEllipse(x, y, diameter, diameter)
-
-        text_rect = rect.adjusted(4, 48, -4, -4)
-        painter.drawText(
-            text_rect,
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
-            self._label,
-        )
-
-    @staticmethod
-    def _map_color(state: str) -> QColor:
-        mapping = {
-            "IDLE": QColor("#9CA3AF"),
-            "RUNNING": QColor("#F59E0B"),
-            "COMPLETED": QColor("#F59E0B"),
-            "PASS": QColor("#22C55E"),
-            "FAIL": QColor("#EF4444"),
-            "OFFLINE": QColor("#6B7280"),
-            "EXPECTED_RESET": QColor("#8B5CF6"),
-            "EXPECTED_UPDATE": QColor("#3B82F6"),
-        }
-        return mapping.get(state, QColor("#9CA3AF"))
-
-
-class PortRowWidget(QWidget):
-    def __init__(self, title: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-
-        self._title = QLabel(title)
-        self._title.setStyleSheet("font-size: 16px; font-weight: 700;")
-
-        self._subtitle = QLabel("Esperando eventos...")
-        self._subtitle.setStyleSheet("font-size: 12px; color: #666;")
-
-        self._circles: list[StatusCircle] = [StatusCircle(label) for label in TEST_LABELS]
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(8)
-
-        root.addWidget(self._title)
-        root.addWidget(self._subtitle)
-
-        circles_layout = QHBoxLayout()
-        circles_layout.setSpacing(12)
-
-        for circle in self._circles:
-            circles_layout.addWidget(circle)
-
-        root.addLayout(circles_layout)
-
-    def apply_state(self, ui_state: PortUiState) -> None:
-        subtitle = (
-            f"expected_ip={ui_state.expected_ip or '-'} | "
-            f"device_ip={ui_state.device_ip or '-'} | "
-            f"mac={ui_state.device_mac or '-'} | "
-            f"connected={ui_state.connected} | "
-            f"status={ui_state.status} | "
-            f"phase={ui_state.phase}"
-        )
-        self._subtitle.setText(subtitle)
-
-        for circle, state in zip(self._circles, ui_state.circle_states, strict=False):
-            circle.set_state(state)
-
 
 class MainWindow(QMainWindow):
     def __init__(
@@ -158,18 +57,184 @@ class MainWindow(QMainWindow):
         self._settings = settings
         self._event_bus = event_bus
         self._station_service = station_service
+        self._logger = get_logger(self.__class__.__name__)
 
-        self._ports: dict[str, PortUiState] = {
-            "worker-01": PortUiState(worker_id="worker-01"),
-            "worker-02": PortUiState(worker_id="worker-02"),
-        }
+        self._ports: dict[str, PortUiState] = {}
 
-        self.setWindowTitle(settings.app.name)
-        self.resize(1250, 420)
+        self.setWindowTitle("Vista principal")
+        self.setMinimumSize(950, 620)
 
-        self._build_ui()
+        self._set_app_icon()
+
+        self.stack = QStackedWidget()
+        self.setCentralWidget(self.stack)
+
+        self.dashboard_view = DashboardView()
+        self.modificar_view = ModificarView()
+        self.testeo_view = TesteoView()
+        self.reportes_view = ReportesView()
+
+        self.stack.addWidget(self.dashboard_view)
+        self.stack.addWidget(self.modificar_view)
+        self.stack.addWidget(self.testeo_view)
+        self.stack.addWidget(self.reportes_view)
+
+        self.stack.setCurrentWidget(self.dashboard_view)
+
+        self._connect_navigation()
+        self.apply_theme()
         self._setup_timer()
+        self._refresh_from_snapshot()
 
+    def _set_app_icon(self) -> None:
+        icon_path = Path(__file__).resolve().parent / "assets" / "logo_tester.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
+    def _connect_navigation(self) -> None:
+        self.dashboard_view.btn_modificar.clicked.connect(self.show_modificar)
+        self.dashboard_view.btn_testear.clicked.connect(self._start_execution_from_dashboard)
+        self.dashboard_view.btn_reportes.clicked.connect(self.show_reportes)
+
+        self.modificar_view.back_requested.connect(self.show_dashboard)
+
+        self.testeo_view.header.btn_back.clicked.connect(self.show_dashboard)
+        self.reportes_view.btn_back.clicked.connect(self.show_dashboard)
+
+        self.modificar_view.theme_changed.connect(self.apply_theme)
+
+    def apply_theme(self) -> None:
+        theme = ThemeManager.get_theme()
+
+        self.setStyleSheet(f"""
+            QMainWindow {{
+                background-color: {theme.app_bg};
+            }}
+            QStackedWidget {{
+                background-color: {theme.app_bg};
+            }}
+        """)
+
+        self.dashboard_view.apply_theme()
+        self.modificar_view.apply_theme()
+        self.testeo_view.apply_theme()
+        self.reportes_view.apply_theme()
+        self.dashboard_view.status_bar.apply_theme()
+
+        self._apply_native_titlebar_theme()
+
+    def _apply_native_titlebar_theme(self) -> None:
+        try:
+            import sys
+            if sys.platform != "win32":
+                return
+
+            import ctypes
+            hwnd = int(self.winId())
+
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            value = ctypes.c_int(1 if ThemeManager.is_dark() else 0)
+
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(value),
+                ctypes.sizeof(value),
+            )
+        except Exception:
+            pass
+
+    def show_dashboard(self) -> None:
+        self.setWindowTitle("Vista principal")
+        self.stack.setCurrentWidget(self.dashboard_view)
+
+    def show_modificar(self) -> None:
+        self.setWindowTitle("Modificar parámetros")
+        self.stack.setCurrentWidget(self.modificar_view)
+
+    def show_testeo(self) -> None:
+        self.setWindowTitle("Testeo")
+        self.stack.setCurrentWidget(self.testeo_view)
+
+    def show_reportes(self) -> None:
+        self.setWindowTitle("Reportes")
+        self.stack.setCurrentWidget(self.reportes_view)
+
+    def _start_execution_from_dashboard(self) -> None:
+        selected_tests = self.dashboard_view.get_selected_tests()
+
+        if not any(selected_tests.values()):
+            log_console(
+                self._logger,
+                logging.WARNING,
+                "No se puede iniciar ejecución: no hay pruebas habilitadas en el dashboard.",
+            )
+            return
+
+        snapshots = self._station_service.get_station_snapshot()
+
+        eligible_workers: list[dict] = []
+        for snapshot in snapshots:
+            connected = bool(snapshot.get("connected", False))
+            state = str(snapshot.get("state", ""))
+            phase = str(snapshot.get("phase", ""))
+
+            if connected and state == "IDLE" and phase == "WAITING":
+                eligible_workers.append(snapshot)
+
+        if not eligible_workers:
+            log_console(
+                self._logger,
+                logging.WARNING,
+                "No hay workers conectados y libres para iniciar ejecución.",
+            )
+            return
+
+        started_workers: list[str] = []
+
+        for snapshot in eligible_workers:
+            worker_id = str(snapshot.get("worker_id", "")).strip()
+            if not worker_id:
+                continue
+
+            request = ExecutionTestRequest(
+                worker_id=worker_id,
+                vendor=None,
+                model=None,
+                tests=dict(selected_tests),
+                metadata={
+                    "source": "dashboard",
+                },
+            )
+
+            started = self._station_service.start_execution_request(request)
+            if started:
+                started_workers.append(worker_id)
+
+        if not started_workers:
+            log_console(
+                self._logger,
+                logging.WARNING,
+                "No se pudo iniciar ejecución para ningún worker elegible.",
+            )
+            return
+
+        log_both(
+            self._logger,
+            logging.INFO,
+            "Ejecución iniciada desde dashboard para: %s | tests=%s",
+            ", ".join(started_workers),
+            selected_tests,
+        )
+
+        self.show_testeo()
+
+    def _setup_timer(self) -> None:
+        self._timer = QTimer(self)
+        self._timer.setInterval(self._settings.ui.refresh_interval_ms)
+        self._timer.timeout.connect(self._consume_events)
+        self._timer.start()
+    
     @staticmethod
     def _test_name_to_index(test_name: str) -> int | None:
         mapping = {
@@ -184,67 +249,17 @@ class MainWindow(QMainWindow):
         }
         return mapping.get(test_name)
     
-    def _build_ui(self) -> None:
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-
-        root_layout = QVBoxLayout(central_widget)
-        root_layout.setContentsMargins(20, 20, 20, 20)
-        root_layout.setSpacing(18)
-
-        title = QLabel("ONT Tester NEXUS")
-        title.setStyleSheet("font-size: 24px; font-weight: 700;")
-        root_layout.addWidget(title)
-
-        subtitle = QLabel("Prueba temporal conectada a worker-01 y worker-02")
-        subtitle.setStyleSheet("font-size: 13px; color: #666;")
-        root_layout.addWidget(subtitle)
-
-        buttons_layout = QHBoxLayout()
-        self._btn_start_1 = QPushButton("Iniciar Puerto 1")
-        self._btn_start_2 = QPushButton("Iniciar Puerto 2")
-        self._btn_refresh = QPushButton("Refresh manual")
-
-        self._btn_start_1.clicked.connect(lambda: self._start_port_execution("worker-01"))
-        self._btn_start_2.clicked.connect(lambda: self._start_port_execution("worker-02"))
-        self._btn_refresh.clicked.connect(self._refresh_from_snapshot)
-
-        buttons_layout.addWidget(self._btn_start_1)
-        buttons_layout.addWidget(self._btn_start_2)
-        buttons_layout.addWidget(self._btn_refresh)
-        buttons_layout.addStretch()
-
-        root_layout.addLayout(buttons_layout)
-
-        self._port_1_widget = PortRowWidget("PUERTO 01")
-        self._port_2_widget = PortRowWidget("PUERTO 02")
-
-        root_layout.addWidget(self._port_1_widget)
-        root_layout.addWidget(self._port_2_widget)
-
-        self._refresh_from_snapshot()
-
-    def _setup_timer(self) -> None:
-        self._timer = QTimer(self)
-        self._timer.setInterval(self._settings.ui.refresh_interval_ms)
-        self._timer.timeout.connect(self._consume_events)
-        self._timer.start()
-
-    def _start_port_execution(self, worker_id: str) -> None:
-        request_data = build_default_execution_request(worker_id)
-        self._station_service.start_execution(request_data)
-
     def _refresh_from_snapshot(self) -> None:
         snapshots = self._station_service.get_station_snapshot()
 
         for snapshot in snapshots:
-            worker_id = str(snapshot.get("worker_id"))
-            if worker_id not in self._ports:
+            worker_id = str(snapshot.get("worker_id", "")).strip()
+            if not worker_id:
                 continue
 
             self._apply_snapshot(worker_id, snapshot)
 
-        self._render()
+        self._render_testeo_view()
 
     def _consume_events(self) -> None:
         events = self._event_bus.drain_events()
@@ -253,49 +268,65 @@ class MainWindow(QMainWindow):
 
         for event in events:
             payload = event.payload
+            worker_id = str(payload.get("worker_id", "")).strip()
+            if not worker_id:
+                continue
 
             if event.event_name == "worker.state_changed":
-                worker_id = str(payload.get("worker_id"))
-                if worker_id not in self._ports:
-                    continue
-
                 self._apply_snapshot(worker_id, payload)
 
             elif event.event_name == "test.indicator_changed":
-                worker_id = str(payload.get("worker_id"))
                 if worker_id not in self._ports:
                     continue
 
                 test_name = str(payload.get("test_name", "")).upper()
                 visual_state = str(payload.get("visual_state", "IDLE")).upper()
+                result_status = str(payload.get("result_status", "")).upper()
+
+                if visual_state == "COMPLETED":
+                    visual_state = "PASS"
+
+                if result_status == "PASS":
+                    visual_state = "PASS"
+                elif result_status in {"FAIL", "ERROR", "FAILED"}:
+                    visual_state = "FAIL"
 
                 index = self._test_name_to_index(test_name)
                 if index is not None:
+                    current_state = self._ports[worker_id].circle_states[index]
+
+                    if current_state in {"PASS", "FAIL"} and visual_state == "RUNNING":
+                        continue
+
                     self._ports[worker_id].circle_states[index] = visual_state
 
             elif event.event_name == "worker.global_visual_mode":
-                worker_id = str(payload.get("worker_id"))
                 if worker_id not in self._ports:
                     continue
 
                 mode = str(payload.get("mode", "")).upper()
                 active = bool(payload.get("active", False))
-
                 self._ports[worker_id].global_mode = mode if active else None
 
-        self._render()
-
+        self._render_testeo_view()
+    
     def _apply_snapshot(self, worker_id: str, snapshot: dict) -> None:
-        port = self._ports[worker_id]
+        port = self._ports.get(worker_id)
+        if port is None:
+            port = PortUiState(worker_id=worker_id)
+            self._ports[worker_id] = port
 
+        port.port_index = snapshot.get("port_index")
         port.connected = bool(snapshot.get("connected", False))
         port.status = str(snapshot.get("status", "IDLE"))
         port.phase = str(snapshot.get("phase", "WAITING"))
         port.expected_ip = snapshot.get("expected_ip") or snapshot.get("ip")
         port.device_ip = snapshot.get("device_ip")
         port.device_mac = snapshot.get("device_mac") or snapshot.get("mac")
+        port.device_sn = snapshot.get("device_sn")
+        port.vendor = snapshot.get("vendor")
+        port.model = snapshot.get("model")
 
-        # Si el backend ya reseteó el slot, limpiamos todo el estado visual local
         if (
             port.status == "IDLE"
             and port.phase == "WAITING"
@@ -307,42 +338,36 @@ class MainWindow(QMainWindow):
             return
 
         self._apply_base_states(port)
-
+    
     def _apply_base_states(self, port: PortUiState) -> None:
-        # El primer círculo siempre refleja conectividad
         port.circle_states[0] = "PASS" if port.connected else "OFFLINE"
 
-        # Si el slot terminó en FAIL y hay fase conocida, pintar esa fase en rojo
-        if port.status in {"FAIL", "ERROR"}:
+        if port.status in {"FAIL", "ERROR", "FAILED"}:
             phase_index = PHASE_TO_INDEX.get(port.phase)
-            if phase_index is not None:
+            if phase_index is not None and port.circle_states[phase_index] not in {"PASS", "FAIL"}:
                 port.circle_states[phase_index] = "FAIL"
+            return
 
-    def _build_circle_states(self, *, connected: bool, status: str, phase: str) -> list[str]:
-        states = ["IDLE"] * 8
+        if port.status in {"RUNNING", "TESTING", "IN_PROGRESS"}:
+            phase_index = PHASE_TO_INDEX.get(port.phase)
+            if phase_index is not None and port.circle_states[phase_index] == "IDLE":
+                port.circle_states[phase_index] = "RUNNING"
+            return
 
-        # Indicador de conectividad / ping
-        states[0] = "PASS" if connected else "OFFLINE"
+        if port.phase in PHASE_TO_INDEX and port.status not in {"PASS", "FINISHED"}:
+            phase_index = PHASE_TO_INDEX.get(port.phase)
+            if phase_index is not None and port.circle_states[phase_index] == "IDLE":
+                port.circle_states[phase_index] = "RUNNING"
+    
+    def _render_testeo_view(self) -> None:
+        success_count = 0
 
-        if status in {"FAIL", "ERROR"}:
-            phase_index = PHASE_TO_INDEX.get(phase)
-            if phase_index is not None:
-                states[phase_index] = "FAIL"
-            return states
-
-        if status == "PASS" and phase == "FINISHED":
-            for index in range(1, 8):
-                states[index] = "PASS"
-            return states
-
-        phase_index = PHASE_TO_INDEX.get(phase)
-        if phase_index is not None:
-            states[phase_index] = "RUNNING"
-
-        return states
-
-    def _render(self) -> None:
         for worker_id, port in self._ports.items():
+            _ = worker_id
+
+            if port.port_index is None:
+                continue
+
             render_states = list(port.circle_states)
 
             if port.global_mode == "EXPECTED_RESET":
@@ -350,31 +375,10 @@ class MainWindow(QMainWindow):
             elif port.global_mode == "EXPECTED_UPDATE":
                 render_states = ["EXPECTED_UPDATE"] * 8
 
-            if worker_id == "worker-01":
-                self._port_1_widget.apply_state(
-                    PortUiState(
-                        worker_id=port.worker_id,
-                        connected=port.connected,
-                        status=port.status,
-                        phase=port.phase,
-                        expected_ip=port.expected_ip,
-                        device_ip=port.device_ip,
-                        device_mac=port.device_mac,
-                        global_mode=port.global_mode,
-                        circle_states=render_states,
-                    )
-                )
-            elif worker_id == "worker-02":
-                self._port_2_widget.apply_state(
-                    PortUiState(
-                        worker_id=port.worker_id,
-                        connected=port.connected,
-                        status=port.status,
-                        phase=port.phase,
-                        expected_ip=port.expected_ip,
-                        device_ip=port.device_ip,
-                        device_mac=port.device_mac,
-                        global_mode=port.global_mode,
-                        circle_states=render_states,
-                    )
-                )
+            self.testeo_view.set_port_circle_states(port.port_index, render_states)
+
+            test_states = render_states[1:]
+            if "FAIL" not in test_states and any(state == "PASS" for state in test_states):
+                success_count += 1
+
+        self.testeo_view.set_success_count(success_count)

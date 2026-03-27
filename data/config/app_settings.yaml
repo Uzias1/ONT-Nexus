@@ -38,8 +38,8 @@ selenium:
   chromedriver_path: "tools/browser/chromedriver-win64/chromedriver.exe"
 
 auto_execution:
-  enabled: true
-  trigger_on_connect: true
+  enabled: false
+  trigger_on_connect: false
 
 wifi:
   scan_retries: 15

@@ -1,10 +1,12 @@
-from __future__ import annotations
-
+import sys
 from PySide6.QtWidgets import QApplication
+from app.ui.main_window import MainWindow
 
 
-def build_qt_app() -> QApplication:
-    """
-    Helper simple para crear QApplication.
-    """
-    return QApplication.instance() or QApplication([])
+def run_ui() -> int:
+    app = QApplication(sys.argv)
+
+    window = MainWindow()
+    window.show()
+
+    return app.exec()
