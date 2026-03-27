@@ -4,6 +4,7 @@ import logging
 import re
 import time
 from typing import TYPE_CHECKING, Any
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
 from app.application.dto.execution_test_request import ExecutionTestRequest
 from app.infrastructure.config.settings import Settings
@@ -215,7 +216,7 @@ class FiberhomeTestRunner(TestRunnerBase):
                 test_name="USB",
                 visual_state="FAIL",
             )
-            log_both(self._logger, logging.ERROR, "Resultado USB %s: %s", self._worker_id, step.details)
+            log_both(self._logger, logging.ERROR, "Resultado USB %s: FAIL | %s", self._worker_id, step.details)
             return step
 
         devices: list[str] = []
@@ -230,59 +231,33 @@ class FiberhomeTestRunner(TestRunnerBase):
         result_details["ftp_session_valid"] = session_raw
 
         usb_list_raw = ftp_info.get("UsbList") or ftp_info.get("USBList") or ""
-        usb_list_raw = str(usb_list_raw)
+        usb_list_raw = str(usb_list_raw).strip()
 
         if usb_list_raw:
             devices = [d for d in re.split(r"[,\s]+", usb_list_raw) if d]
             connected_count = len(devices)
-            result_details["usb_devices_connected"] = connected_count
-            result_details["usb_devices_list"] = devices
-            result_details["usb_list_raw"] = usb_list_raw
-        else:
-            if session_valid not in (1, None):
-                result_details["warning_ftp"] = (
-                    f"get_ftpclient_info devolvió session_valid={session_raw} y no se recibió UsbList."
-                )
 
-        usb_status_norm = (raw.get("usb_status") or base_info.get("usb_status") or "").strip().lower()
+        result_details["usb_devices_connected"] = connected_count
+        result_details["usb_devices_list"] = devices
+        result_details["usb_list_raw"] = usb_list_raw
         result_details["method"] = "AJAX get_base_info"
 
-        if connected_count >= usb_ports and usb_ports > 0:
+        if not usb_list_raw and session_valid not in (1, None):
+            result_details["warning_ftp"] = (
+                f"get_ftpclient_info devolvió session_valid={session_raw} y no se recibió UsbList."
+            )
+
+        if connected_count >= usb_ports:
             step = self._adapter.build_test_result(
                 name="usb",
                 status="PASS",
                 details={
                     **result_details,
-                    "note": f"Capacidad declarada: {usb_ports}; dispositivos detectados: {connected_count} (OK).",
+                    "note": (
+                        f"Capacidad declarada: {usb_ports}; "
+                        f"dispositivos detectados: {connected_count} (OK)."
+                    ),
                 },
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="USB",
-                visual_state="PASS",
-            )
-            log_both(self._logger, logging.INFO, "Resultado USB %s: PASS | %s", self._worker_id, step.details)
-            return step
-
-        elif connected_count > 0 and usb_ports > 0:
-            step = self._adapter.build_test_result(
-                name="usb",
-                status="FAIL",
-                details={**result_details, "error": "Se detectaron algunos dispositivos USB, pero no coincide con la capacidad."},
-            )
-            self._supervisor.publish_test_indicator(
-                worker_id=self._worker_id,
-                test_name="USB",
-                visual_state="FAIL",
-            )
-            log_both(self._logger, logging.ERROR, "Resultado USB %s: FAIL | %s", self._worker_id, step.details)
-            return step
-
-        if usb_status_norm == "active":
-            step = self._adapter.build_test_result(
-                name="usb",
-                status="PASS",
-                details={**result_details, "usb_status": "Active"},
             )
             self._supervisor.publish_test_indicator(
                 worker_id=self._worker_id,
@@ -295,7 +270,13 @@ class FiberhomeTestRunner(TestRunnerBase):
         step = self._adapter.build_test_result(
             name="usb",
             status="FAIL",
-            details={**result_details, "usb_status": "Inactive", "method": "AJAX get_base_info"},
+            details={
+                **result_details,
+                "reason": (
+                    f"La cantidad de dispositivos USB detectados ({connected_count}) "
+                    f"es menor que la capacidad declarada del equipo ({usb_ports})."
+                ),
+            },
         )
         self._supervisor.publish_test_indicator(
             worker_id=self._worker_id,
@@ -803,14 +784,11 @@ class FiberhomeTestRunner(TestRunnerBase):
                 message="Reingresando con credenciales normales para validar la nueva versión.",
             )
 
-            navigator.open_root(target_ip)
-            navigator.login("root", "admin")
-
-            refreshed_base_info = navigator.extract_base_info() or {}
-            refreshed_version = (
-                refreshed_base_info.get("software_version")
-                or (refreshed_base_info.get("raw_data") or {}).get("SoftwareVersion")
-                or ""
+            refreshed_version, refreshed_base_info = self._safe_extract_software_version(
+                navigator=navigator,
+                target_ip=target_ip,
+                retries=5,
+                delay_s=8.0,
             )
 
             update_applied = self._software_update_evaluator.is_target_applied(
@@ -819,20 +797,11 @@ class FiberhomeTestRunner(TestRunnerBase):
             )
 
             if update_applied:
-                step = self._adapter.build_test_result(
-                    name="software_update",
-                    status="PASS",
-                    details={
-                        "update_required": True,
-                        "completed": True,
-                        "previous_version": decision.current_version,
-                        "current_version": refreshed_version,
-                        "target_version": firmware.target_version,
-                        "firmware_path": str(firmware.firmware_path),
-                        "firmware_filename": firmware.filename,
-                        "model_name": model_name,
-                        "model_key": firmware.model_key,
-                    },
+                step = self._build_software_update_pass_result(
+                    decision=decision,
+                    firmware=firmware,
+                    model_name=model_name,
+                    refreshed_version=refreshed_version,
                 )
                 self._publish_software_update_stage(
                     stage="COMPLETED",
@@ -883,6 +852,59 @@ class FiberhomeTestRunner(TestRunnerBase):
             return step, refreshed_base_info
 
         except Exception as exc:
+            log_both(
+                self._logger,
+                logging.WARNING,
+                "Excepción durante software update para %s. Se intentará validación final de respaldo: %s",
+                self._worker_id,
+                exc,
+            )
+
+            try:
+                fallback_version, fallback_base_info = self._safe_extract_software_version(
+                    navigator=navigator,
+                    target_ip=target_ip,
+                    retries=3,
+                    delay_s=10.0,
+                )
+
+                if "firmware" in locals() and self._software_update_evaluator.is_target_applied(
+                    current_version=fallback_version,
+                    target_version=firmware.target_version,
+                ):
+                    step = self._build_software_update_pass_result(
+                        decision=decision,
+                        firmware=firmware,
+                        model_name=model_name,
+                        refreshed_version=fallback_version,
+                    )
+                    step.details["warning"] = "La verificación inicial falló, pero la validación de respaldo confirmó la versión objetivo."
+
+                    self._publish_software_update_stage(
+                        stage="COMPLETED_WITH_FALLBACK_VERIFICATION",
+                        progress_percent=100,
+                        message="La actualización se confirmó mediante validación de respaldo.",
+                        visual_state="PASS",
+                        extra_payload=step.details,
+                    )
+                    log_both(
+                        self._logger,
+                        logging.INFO,
+                        "Resultado SOFTWARE_UPDATE %s: PASS | %s",
+                        self._worker_id,
+                        step.details,
+                    )
+                    return step, fallback_base_info
+
+            except Exception as fallback_exc:
+                log_both(
+                    self._logger,
+                    logging.WARNING,
+                    "Validación de respaldo también falló para %s: %s",
+                    self._worker_id,
+                    fallback_exc,
+                )
+
             step = self._adapter.build_test_result(
                 name="software_update",
                 status="FAIL",
@@ -909,7 +931,6 @@ class FiberhomeTestRunner(TestRunnerBase):
                 step.details,
             )
             return step, base_info
-
         finally:
             self._supervisor.publish_global_visual_mode(
                 worker_id=self._worker_id,
@@ -935,3 +956,81 @@ class FiberhomeTestRunner(TestRunnerBase):
 
     def _is_host_reachable(self, target_ip: str) -> bool:
         return self._ping_service.ping(target_ip)
+    
+    def _safe_extract_software_version(
+        self,
+        *,
+        navigator: FiberhomeNavigator,
+        target_ip: str,
+        retries: int = 5,
+        delay_s: float = 8.0,
+    ) -> tuple[str, dict[str, Any]]:
+        last_error: Exception | None = None
+
+        for attempt in range(1, retries + 1):
+            try:
+                log_both(
+                    self._logger,
+                    logging.INFO,
+                    "Verificación post-update %s/%s para %s.",
+                    attempt,
+                    retries,
+                    self._worker_id,
+                )
+
+                navigator.open_root(target_ip)
+                navigator.login("root", "admin")
+
+                refreshed_base_info = navigator.extract_base_info() or {}
+                refreshed_version = (
+                    refreshed_base_info.get("software_version")
+                    or (refreshed_base_info.get("raw_data") or {}).get("SoftwareVersion")
+                    or ""
+                )
+
+                if refreshed_version:
+                    return refreshed_version, refreshed_base_info
+
+            except (TimeoutException, WebDriverException, Exception) as exc:
+                last_error = exc
+                log_both(
+                    self._logger,
+                    logging.WARNING,
+                    "Intento de verificación post-update %s/%s fallido para %s: %s",
+                    attempt,
+                    retries,
+                    self._worker_id,
+                    exc,
+                )
+
+            if attempt < retries:
+                time.sleep(delay_s)
+
+        if last_error:
+            raise last_error
+
+        return "", {}
+
+    def _build_software_update_pass_result(
+        self,
+        *,
+        decision,
+        firmware,
+        model_name: str,
+        refreshed_version: str,
+    ):
+        return self._adapter.build_test_result(
+            name="software_update",
+            status="PASS",
+            details={
+                "update_required": True,
+                "completed": True,
+                "previous_version": decision.current_version,
+                "current_version": refreshed_version,
+                "target_version": firmware.target_version,
+                "firmware_path": str(firmware.firmware_path),
+                "firmware_filename": firmware.filename,
+                "model_name": model_name,
+                "model_key": firmware.model_key,
+            },
+        )
