@@ -44,7 +44,7 @@ auto_execution:
 wifi:
   scan_retries: 15
   scan_retry_delay_s: 2
-  stabilization_delay_s: 1
+  stabilization_delay_s: 8
 
 paths:
   bins_root: "C:/ONT-NEXUS/bins"
