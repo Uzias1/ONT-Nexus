@@ -263,3 +263,14 @@ class DashboardView(QWidget):
 
         for btn in [self.btn_testear, self.btn_modificar, self.btn_reportes]:
             btn.setFixedSize(button_width, button_height)
+    
+    def get_selected_tests(self) -> dict[str, bool]:
+        return {
+            "factory_reset": self.row_factory.toggle.isChecked(),
+            "software_update": self.row_software.toggle.isChecked(),
+            "usb": self.row_usb.toggle.isChecked(),
+            "fiber_tx": self.row_tx.toggle.isChecked(),
+            "fiber_rx": self.row_rx.toggle.isChecked(),
+            "wifi_2g": self.row_wifi24.toggle.isChecked(),
+            "wifi_5g": self.row_wifi5.toggle.isChecked(),
+        }

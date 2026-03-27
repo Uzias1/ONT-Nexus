@@ -112,6 +112,25 @@ class PortRow(QFrame):
         font.setWeight(QFont.DemiBold)
         self.port_label.setFont(font)
 
+    def set_circle_states(self, states: list[str]) -> None:
+        for circle, state in zip(self.circles, states, strict=False):
+            fill, border = self._map_colors(state)
+            circle.set_colors(fill, border)
+
+    @staticmethod
+    def _map_colors(state: str) -> tuple[str, str]:
+        mapping = {
+            "IDLE": ("#F1F5F9", "#8AA4BE"),
+            "RUNNING": ("#FF9D2E", "#C77810"),
+            "COMPLETED": ("#FF9D2E", "#C77810"),
+            "PASS": ("#19FF19", "#138A13"),
+            "FAIL": ("#FF1E14", "#B91C1C"),
+            "OFFLINE": ("#4A4A4A", "#2A2A2A"),
+            "EXPECTED_RESET": ("#8A18FF", "#6414B8"),
+            "EXPECTED_UPDATE": ("#1118B8", "#0B0F78"),
+            "ERROR": ("#000000", "#2A2A2A"),
+        }
+        return mapping.get(state, ("#F1F5F9", "#8AA4BE"))
 
 class LegendItem(QWidget):
     def __init__(self, color: str, text: str, border: str = "#2A2A2A", parent=None) -> None:
@@ -311,6 +330,7 @@ class TesteoView(QWidget):
         super().__init__(parent)
         self.left_rows = []
         self.right_rows = []
+        self.rows_by_port_index: dict[int, PortRow] = {}
         self._build_ui()
         self._apply_responsive_sizes()
 
@@ -354,11 +374,13 @@ class TesteoView(QWidget):
         for i in range(1, 13):
             row = PortRow(f"Puerto {i}")
             self.left_rows.append(row)
+            self.rows_by_port_index[i] = row
             self.left_column_layout.addWidget(row)
 
         for i in range(13, 25):
             row = PortRow(f"Puerto {i}")
             self.right_rows.append(row)
+            self.rows_by_port_index[i] = row
             self.right_column_layout.addWidget(row)
 
         self.left_column_layout.addStretch()
@@ -446,3 +468,20 @@ class TesteoView(QWidget):
         for row in self.left_rows + self.right_rows:
             row.set_scale(circle_diameter, port_font_size)
             row.circles_layout.setSpacing(circle_spacing)
+
+    def get_row_by_port_index(self, port_index: int) -> PortRow | None:
+        return self.rows_by_port_index.get(port_index)
+
+    def set_port_circle_states(self, port_index: int, states: list[str]) -> None:
+        row = self.get_row_by_port_index(port_index)
+        if row is None:
+            return
+        row.set_circle_states(states)
+
+    def set_success_count(self, count: int) -> None:
+        self.header.success_label.setText(f"Pruebas exitosas: {count}")
+
+    def reset_all_ports(self) -> None:
+        for port_index, row in self.rows_by_port_index.items():
+            _ = port_index
+            row.set_circle_states(["IDLE"] * 8)

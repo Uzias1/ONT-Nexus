@@ -10,6 +10,7 @@ from app.infrastructure.config.settings import Settings
 from app.infrastructure.logging.logger import get_logger, log_both, log_console
 from app.infrastructure.vendors.fiberhome.fiberhome_test_runner import FiberhomeTestRunner
 from app.infrastructure.network.ping_service import PingService
+from app.application.services.device_detection_service import DeviceDetectionService
 
 if TYPE_CHECKING:
     from app.workers.supervisor import Supervisor
@@ -37,6 +38,7 @@ class PortWorker:
         self._ping_service = ping_service
         self._request = request
         self._logger = get_logger(f"{self.__class__.__name__}.{worker_id}")
+        self._device_detection_service = DeviceDetectionService(settings)
 
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -122,11 +124,21 @@ class PortWorker:
 
             self._supervisor.update_worker_phase(
                 worker_id=self._worker_id,
+                phase="DETECTING_DEVICE",
+                status="TESTING",
+            )
+
+            target_ip = self._resolve_target_ip()
+            effective_request = self._resolve_effective_request(target_ip=target_ip)
+
+            self._supervisor.update_worker_phase(
+                worker_id=self._worker_id,
                 phase="STARTING",
                 status="TESTING",
             )
 
-            vendor = (self._request.vendor or "").strip().upper()
+            vendor = (effective_request.vendor or "").strip().upper()
+
             if vendor == "FIBERHOME":
                 runner = FiberhomeTestRunner(
                     settings=self._settings,
@@ -134,7 +146,7 @@ class PortWorker:
                     worker_id=self._worker_id,
                     ping_service=self._ping_service,
                 )
-                execution_result = runner.run(self._request)
+                execution_result = runner.run(effective_request)
 
                 context = self._supervisor.get_worker_context(self._worker_id)
                 if context is not None:
@@ -189,6 +201,70 @@ class PortWorker:
         finally:
             with self._lock:
                 self._running = False
+
+    def _resolve_target_ip(self) -> str:
+        snapshot = self._supervisor.get_worker_snapshot(self._worker_id)
+        if snapshot is None:
+            raise RuntimeError(f"No existe snapshot para {self._worker_id}")
+
+        target_ip = snapshot.get("device_ip") or snapshot.get("expected_ip")
+        if not target_ip:
+            raise RuntimeError(f"No hay IP disponible para detectar el equipo en {self._worker_id}")
+
+        return str(target_ip)
+
+    def _resolve_effective_request(self, *, target_ip: str) -> ExecutionTestRequest:
+        request_vendor = (self._request.vendor or "").strip()
+        request_model = (self._request.model or "").strip() if self._request.model else None
+
+        if request_vendor:
+            vendor = request_vendor.upper()
+            model = request_model
+            detection_details = {
+                "source": "request",
+            }
+        else:
+            detected = self._device_detection_service.detect(
+                ip=target_ip,
+                worker_id=self._worker_id,
+            )
+            vendor = detected.vendor.strip().upper()
+            model = detected.model
+            detection_details = {
+                "source": "auto_detection",
+                "method": detected.detection_method,
+                "details": detected.details,
+            }
+
+        context = self._supervisor.get_worker_context(self._worker_id)
+        if context is not None:
+            context.bind_device(
+                device_ip=target_ip,
+                vendor=vendor,
+                model=model,
+            )
+            context.set_metadata("device_detection", detection_details)
+
+        log_both(
+            self._logger,
+            logging.INFO,
+            "Request efectivo para %s: vendor=%s model=%s ip=%s tests=%s",
+            self._worker_id,
+            vendor,
+            model,
+            target_ip,
+            self._request.enabled_tests(),
+        )
+
+        return ExecutionTestRequest(
+            worker_id=self._request.worker_id,
+            device_mac=self._request.device_mac,
+            device_sn=self._request.device_sn,
+            vendor=vendor,
+            model=model,
+            tests=dict(self._request.tests),
+            metadata=dict(self._request.metadata),
+        )
 
     # ==========================================================
     # Dispatcher de pruebas
