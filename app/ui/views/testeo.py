@@ -484,4 +484,6 @@ class TesteoView(QWidget):
     def reset_all_ports(self) -> None:
         for port_index, row in self.rows_by_port_index.items():
             _ = port_index
-            row.set_circle_states(["IDLE"] * 8)
+            base_states = ["IDLE"] * 8
+            base_states[0] = "OFFLINE"
+            row.set_circle_states(base_states)

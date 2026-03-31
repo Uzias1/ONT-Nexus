@@ -60,6 +60,9 @@ class MainWindow(QMainWindow):
         self._logger = get_logger(self.__class__.__name__)
 
         self._ports: dict[str, PortUiState] = {}
+        self._armed_tests: dict[str, bool] | None = None
+        self._continuous_mode_enabled = False
+        self._workers_requested: set[str] = set()
 
         self.setWindowTitle("Vista principal")
         self.setMinimumSize(950, 620)
@@ -84,6 +87,7 @@ class MainWindow(QMainWindow):
         self._connect_navigation()
         self.apply_theme()
         self._setup_timer()
+        self._seed_ports_from_station_map()
         self._refresh_from_snapshot()
 
     def _set_app_icon(self) -> None:
@@ -145,7 +149,9 @@ class MainWindow(QMainWindow):
             pass
 
     def show_dashboard(self) -> None:
-        self.setWindowTitle("Vista principal")
+        self._continuous_mode_enabled = False
+        self._armed_tests = None
+        self._workers_requested.clear()
         self.stack.setCurrentWidget(self.dashboard_view)
 
     def show_modificar(self) -> None:
@@ -171,63 +177,13 @@ class MainWindow(QMainWindow):
             )
             return
 
-        snapshots = self._station_service.get_station_snapshot()
+        self._armed_tests = dict(selected_tests)
+        self._continuous_mode_enabled = True
 
-        eligible_workers: list[dict] = []
-        for snapshot in snapshots:
-            connected = bool(snapshot.get("connected", False))
-            state = str(snapshot.get("state", ""))
-            phase = str(snapshot.get("phase", ""))
-
-            if connected and state == "IDLE" and phase == "WAITING":
-                eligible_workers.append(snapshot)
-
-        if not eligible_workers:
-            log_console(
-                self._logger,
-                logging.WARNING,
-                "No hay workers conectados y libres para iniciar ejecución.",
-            )
-            return
-
-        started_workers: list[str] = []
-
-        for snapshot in eligible_workers:
-            worker_id = str(snapshot.get("worker_id", "")).strip()
-            if not worker_id:
-                continue
-
-            request = ExecutionTestRequest(
-                worker_id=worker_id,
-                vendor=None,
-                model=None,
-                tests=dict(selected_tests),
-                metadata={
-                    "source": "dashboard",
-                },
-            )
-
-            started = self._station_service.start_execution_request(request)
-            if started:
-                started_workers.append(worker_id)
-
-        if not started_workers:
-            log_console(
-                self._logger,
-                logging.WARNING,
-                "No se pudo iniciar ejecución para ningún worker elegible.",
-            )
-            return
-
-        log_both(
-            self._logger,
-            logging.INFO,
-            "Ejecución iniciada desde dashboard para: %s | tests=%s",
-            ", ".join(started_workers),
-            selected_tests,
-        )
-
+        self._refresh_from_snapshot()
         self.show_testeo()
+
+        self._try_start_continuous_execution()
 
     def _setup_timer(self) -> None:
         self._timer = QTimer(self)
@@ -264,6 +220,8 @@ class MainWindow(QMainWindow):
     def _consume_events(self) -> None:
         events = self._event_bus.drain_events()
         if not events:
+            self._release_workers_for_continuous_mode()
+            self._try_start_continuous_execution()
             return
 
         for event in events:
@@ -308,6 +266,8 @@ class MainWindow(QMainWindow):
                 active = bool(payload.get("active", False))
                 self._ports[worker_id].global_mode = mode if active else None
 
+        self._release_workers_for_continuous_mode()
+        self._try_start_continuous_execution()
         self._render_testeo_view()
     
     def _apply_snapshot(self, worker_id: str, snapshot: dict) -> None:
@@ -360,6 +320,8 @@ class MainWindow(QMainWindow):
                 port.circle_states[phase_index] = "RUNNING"
     
     def _render_testeo_view(self) -> None:
+        self.testeo_view.reset_all_ports()
+
         success_count = 0
 
         for worker_id, port in self._ports.items():
@@ -382,3 +344,82 @@ class MainWindow(QMainWindow):
                 success_count += 1
 
         self.testeo_view.set_success_count(success_count)
+    
+    def _seed_ports_from_station_map(self) -> None:
+        for entry in self._settings.station_map:
+            worker_id = str(entry.worker_id).strip()
+            if not worker_id:
+                continue
+
+            if worker_id not in self._ports:
+                port = PortUiState(worker_id=worker_id)
+                port.port_index = int(entry.port_index)
+                port.expected_ip = str(entry.expected_ip)
+                port.connected = False
+                port.status = "IDLE"
+                port.phase = "WAITING"
+                port.circle_states = ["IDLE"] * 8
+                port.circle_states[0] = "OFFLINE"
+                self._ports[worker_id] = port
+
+    def _is_worker_eligible_for_execution(self, snapshot: dict) -> bool:
+        connected = bool(snapshot.get("connected", False))
+        state = str(snapshot.get("state", ""))
+        phase = str(snapshot.get("phase", ""))
+
+        return connected and state == "IDLE" and phase == "WAITING"
+
+    def _try_start_continuous_execution(self) -> None:
+        if not self._continuous_mode_enabled or not self._armed_tests:
+            return
+
+        snapshots = self._station_service.get_station_snapshot()
+
+        started_workers: list[str] = []
+
+        for snapshot in snapshots:
+            worker_id = str(snapshot.get("worker_id", "")).strip()
+            if not worker_id:
+                continue
+
+            if worker_id in self._workers_requested:
+                continue
+
+            if not self._is_worker_eligible_for_execution(snapshot):
+                continue
+
+            request = ExecutionTestRequest(
+                worker_id=worker_id,
+                vendor=None,
+                model=None,
+                tests=dict(self._armed_tests),
+                metadata={
+                    "source": "dashboard_continuous",
+                },
+            )
+
+            started = self._station_service.start_execution_request(request)
+            if started:
+                self._workers_requested.add(worker_id)
+                started_workers.append(worker_id)
+
+        if started_workers:
+            log_both(
+                self._logger,
+                logging.INFO,
+                "Ejecución continua disparada para: %s | tests=%s",
+                ", ".join(started_workers),
+                self._armed_tests,
+            )
+
+    def _release_workers_for_continuous_mode(self) -> None:
+        for worker_id, port in self._ports.items():
+            if worker_id not in self._workers_requested:
+                continue
+
+            if not port.connected:
+                self._workers_requested.discard(worker_id)
+                continue
+
+            if port.phase == "FINISHED":
+                self._workers_requested.discard(worker_id)
