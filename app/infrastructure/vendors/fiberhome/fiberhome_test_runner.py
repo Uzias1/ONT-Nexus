@@ -359,6 +359,28 @@ class FiberhomeTestRunner(TestRunnerBase):
         retry_delay_s = self._settings.wifi.scan_retry_delay_s
         stabilization_delay_s = self._settings.wifi.stabilization_delay_s
 
+        # Mostrar en UI que se están ejecutando las pruebas de wifi
+        self._supervisor.update_worker_phase(
+            worker_id=self._worker_id,
+            phase="WIFI_2G",
+            status="TESTING",
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="WIFI_2G",
+            visual_state="RUNNING",
+        )
+
+        self._supervisor.update_worker_phase(
+            worker_id=self._worker_id,
+            phase="WIFI_5G",
+            status="TESTING",
+        )
+        self._supervisor.publish_test_indicator(
+            worker_id=self._worker_id,
+            test_name="WIFI_5G",
+            visual_state="RUNNING",
+        )
         with self._supervisor.wifi_scan_guard(self._worker_id):
             log_both(
                 self._logger,
