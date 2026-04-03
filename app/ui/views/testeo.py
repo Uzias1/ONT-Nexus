@@ -1,5 +1,7 @@
+from pathlib import Path
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen, QBrush
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QBrush, QPixmap
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -15,6 +17,10 @@ from PySide6.QtWidgets import (
 from app.ui.theme_manager import ThemeManager
 from app.ui.widgets.buttons import BackButton, HelpCircleButton
 
+#Helpers para los assets
+ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
+CHECK_COLOR_PATH = ASSETS_DIR / "check_color.png"
+CHECK_GRAY_PATH = ASSETS_DIR / "check_gris.png"
 
 class StatusCircle(QWidget):
     def __init__(self, color: str = "#F8FBFE", border: str = "#8FA8BC", diameter: int = 30, parent=None) -> None:
@@ -46,6 +52,8 @@ class PortRow(QFrame):
         super().__init__(parent)
         self.port_name = port_name
         self.circles = []
+        self._check_size = 54
+        self._check_completed = False
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -71,12 +79,19 @@ class PortRow(QFrame):
 
         self.circles_layout.addStretch()
 
+        self.check_label = QLabel(self)
+        self.check_label.setObjectName("completionCheck")
+        self.check_label.setAlignment(Qt.AlignCenter)
+        self.check_label.setFixedSize(self._check_size, self._check_size)
+        self._apply_check_pixmap()
+
         self.port_label = QLabel(self.port_name)
         self.port_label.setObjectName("portLabel")
         self.port_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         self.port_label.setMinimumWidth(86)
 
         root.addWidget(self.circles_wrap, 1)
+        root.addWidget(self.check_label, 0, Qt.AlignVCenter)
         root.addWidget(self.port_label, 0, Qt.AlignRight | Qt.AlignVCenter)
 
     def apply_theme(self) -> None:
@@ -111,6 +126,34 @@ class PortRow(QFrame):
         font.setPointSize(font_size)
         font.setWeight(QFont.DemiBold)
         self.port_label.setFont(font)
+
+        self._check_size = max(circle_diameter + 14, 40)
+        self.check_label.setFixedSize(self._check_size, self._check_size)
+        self._apply_check_pixmap()
+
+    def set_completion_state(self, completed: bool) -> None:
+        self._check_completed = completed
+        self._apply_check_pixmap()
+
+    def _apply_check_pixmap(self) -> None:
+        image_path = CHECK_COLOR_PATH if self._check_completed else CHECK_GRAY_PATH
+
+        if not image_path.exists():
+            self.check_label.clear()
+            return
+
+        pixmap = QPixmap(str(image_path))
+        if pixmap.isNull():
+            self.check_label.clear()
+            return
+
+        scaled = pixmap.scaled(
+            self._check_size,
+            self._check_size,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self.check_label.setPixmap(scaled)
 
     def set_circle_states(self, states: list[str]) -> None:
         for circle, state in zip(self.circles, states, strict=False):
@@ -478,6 +521,12 @@ class TesteoView(QWidget):
             return
         row.set_circle_states(states)
 
+    def set_port_completion_state(self, port_index: int, completed: bool) -> None:
+        row = self.get_row_by_port_index(port_index)
+        if row is None:
+            return
+        row.set_completion_state(completed)
+
     def set_success_count(self, count: int) -> None:
         self.header.success_label.setText(f"Pruebas exitosas: {count}")
 
@@ -487,3 +536,4 @@ class TesteoView(QWidget):
             base_states = ["IDLE"] * 8
             base_states[0] = "OFFLINE"
             row.set_circle_states(base_states)
+            row.set_completion_state(False)

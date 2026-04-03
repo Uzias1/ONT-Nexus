@@ -42,6 +42,7 @@ class PortUiState:
     vendor: str | None = None
     model: str | None = None
     global_mode: str | None = None
+    completed_cycle: bool = False
     circle_states: list[str] = field(default_factory=lambda: ["IDLE"] * 8)
 
 class MainWindow(QMainWindow):
@@ -292,10 +293,19 @@ class MainWindow(QMainWindow):
             and port.phase == "WAITING"
             and not port.connected
         ):
+            real_disconnect = port.global_mode not in {"EXPECTED_RESET", "EXPECTED_UPDATE"}
+
             port.global_mode = None
             port.circle_states = ["IDLE"] * 8
             port.circle_states[0] = "OFFLINE"
+
+            if real_disconnect:
+                port.completed_cycle = False
+
             return
+
+        if port.phase == "FINISHED":
+            port.completed_cycle = True
 
         self._apply_base_states(port)
     
@@ -338,7 +348,10 @@ class MainWindow(QMainWindow):
                 render_states = ["EXPECTED_UPDATE"] * 8
 
             self.testeo_view.set_port_circle_states(port.port_index, render_states)
-
+            self.testeo_view.set_port_completion_state(
+                port.port_index,
+                port.completed_cycle,
+            )
             test_states = render_states[1:]
             if "FAIL" not in test_states and any(state == "PASS" for state in test_states):
                 success_count += 1
@@ -358,6 +371,7 @@ class MainWindow(QMainWindow):
                 port.connected = False
                 port.status = "IDLE"
                 port.phase = "WAITING"
+                port.completed_cycle = False
                 port.circle_states = ["IDLE"] * 8
                 port.circle_states[0] = "OFFLINE"
                 self._ports[worker_id] = port
